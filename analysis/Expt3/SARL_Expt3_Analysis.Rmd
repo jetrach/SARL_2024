@@ -1,0 +1,1271 @@
+---
+title: "pSARLv01 sustained attention and slot machine reward"
+author: "JT"
+date: "2/9/22"
+output: pdf_document
+toc: yes
+toc_depth: 2
+fontsize: 12pt
+---
+\newpage
+
+# Abstract
+prolific  50 person sample AND 100 person sample together
+Passive SARL 2 - 76 "slot machine" trials where participants get a random reward. Start with 50 pts, then 75 random rewards matched with the points from previous prolific version (winner-take-all, then subtracted the mean of the points that ppl got in the active version to make sure there aren't tooo many wins, then round to nearest integer)
+
+
+\newpage
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+# set up workspace
+rm(list=ls(all=TRUE))
+setwd("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_pSARL_v3/data")
+datadir = "~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_pSARL_v3/data"
+datadir_two = "~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_pSARL_v2/data"
+
+# load libraries
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(itsadug)
+library(RColorBrewer)
+library(knitr)
+library(extrafont)
+library(fs)
+library(fabricatr)
+library(rstatix)
+library(lme4)
+library(lmerTest)
+library(cocor)
+library(pracma)
+library(Rmisc)
+library(effsize)
+# define se function
+se <- function(x) sqrt(var(x)/length(x))
+nanMax = function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
+# read in data
+flag = 2 #1 = compile all the data, 2 = read in the already ready files
+
+if(flag == 1){
+  file_paths = fs::dir_ls(datadir)
+  compiledData_three = data.frame()
+  for (i in seq_along(file_paths)){
+    newSubjData = read_csv(file = file_paths[[i]])
+    compiledData_three = rbind(compiledData_three, newSubjData)
+  }
+
+  file_paths = fs::dir_ls(datadir_two)
+  compiledData_two = data.frame()
+  for (i in seq_along(file_paths)){
+    newSubjData = read_csv(file = file_paths[[i]])
+    compiledData_two = rbind(compiledData_two, newSubjData)
+  }
+  
+  compiledData = data.frame()
+  compiledData = rbind(compiledData_two,compiledData_three)
+  # clean up data
+  compiledData$rt = as.numeric(compiledData$rt)
+  compiledData$time_elapsed = as.numeric(compiledData$time_elapsed)
+  compiledData$key_press = as.numeric(compiledData$key_press)
+  compiledData$corrresp = as.numeric(compiledData$corrresp)
+
+
+
+  # sort data into prac and test
+  pracData = filter(compiledData, phase == "prac")
+  testData = filter(compiledData, phase == "test")
+  testData = testData %>% filter(trialType %in% c('freq','infreq','reward','points'))
+  # get some variables
+prolificNums = unique(testData$subject)
+subjNums_all = unique(testData$subject)
+N_all = length(prolificNums)
+nRLTrials = 76
+chancePerformance = 50/nRLTrials #maybe add the actual formula at some point 
+
+  # add other info
+    # rL corr or not
+counter = 1
+  for (ai in 1:N_all){
+    for(bi in 1:nanMax(testData$rlNum)){
+      idx = which(testData$rlNum == bi & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
+      if(!is_empty(idx)){
+      if(is.na(testData$key_press[idx])){
+        testData$reward[idx] = NA
+     }
+     else if(testData$coin[idx] < testData$pReward[idx]){
+       testData$reward[idx] = 1
+      } else{
+        testData$reward[idx] = 0
+      }
+    
+      if(is.na(testData$key_press[idx])){
+      testData$reward[idx] = NA
+      }
+      else if(testData$pReward[idx] == .8){
+        testData$rlCorr[idx] = 1
+      } else{
+        testData$rlCorr[idx] = 0
+      }
+      testData$rlType[idx-1] = "preRL"
+      testData$rlType[idx] = 'rl'
+    }}
+    for(ci in 2:nanMax(testData$rlNum)){
+      idxCurr = which(testData$rlNum == ci & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
+      idxPrev = which(testData$rlNum == (ci-1) & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
+      if(!is_empty(idxCurr) & !is_empty(idxPrev)){
+      if(idxCurr ==2){
+        testData$switch[1] = NA 
+        }else if(testData$shapeChosen[idxCurr] =='too slow'){
+        testData$switch[idxCurr] = NA
+      }else if(testData$shapeChosen[idxCurr]==testData$shapeChosen[idxPrev]){
+        testData$switch[idxCurr] = 0
+      }else{
+        testData$switch[idxCurr] = 1
+        if(is.na(testData$key_press[idxPrev])){
+          testData$switch[idxCurr] = NA
+        }}
+      }
+      }
+  }
+
+ #write.csv(testData, 'pSARL_v0203_testData_10.3.23.csv')
+#  write.csv(pracData, 'SARL_pracData.csv')
+  }else{
+    testData = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/4 Analyses/OrganizedCode/Expt3/pSARL_v0203_testData_10.3.23.csv")
+  }
+
+prolificNums = unique(testData$subject)
+subjNums_all = unique(testData$subject)
+N_all = length(prolificNums)
+nRLTrials = 76
+chancePerformance = 50/nRLTrials
+
+demoData_three = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_pSARL_v3/demoData_pSARL_v3.csv")
+demoData_two = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_pSARL_v2/demoData_pSARL_v2.csv")
+demoData = rbind(demoData_two,demoData_three)
+
+rlData_SARL = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/SARL_prolificRep_rlData_noNan_081123.csv")
+testData_SARL = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/SARL_prolificRep_testData_081123.csv")
+
+testData_noExclusions = testData
+```
+\newpage
+# Plots related to excluded participants
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+# Find the subjects that are worse than 75% on frequent trials
+ExcludedSubjs_freqaccu = testData_noExclusions %>% filter(trialType == 'freq') %>% group_by(subject) %>% dplyr::summarise(accu = mean(corr, na.rm = TRUE)) %>% filter(accu < .75)
+ggplot(ExcludedSubjs_freqaccu, aes(x = subject, y = accu)) + geom_bar(stat = 'identity')
+sprintf('N subjects excluded for accuracy on frequent trials: %d', length(ExcludedSubjs_freqaccu$subject))
+c(ExcludedSubjs_freqaccu$subject)
+
+# Find subjects that got less that 75% rl trials (57 trials)
+ExcludedSubjs_rlresp = testData_noExclusions %>% group_by(subject) %>% filter(trialType == 'reward', rt > 1500) %>% dplyr::summarise(counts = n()) %>% filter( counts > 18)
+ggplot(ExcludedSubjs_rlresp, aes(x = subject, y = counts)) + geom_bar(stat = 'identity')
+sprintf('N subjects excluded for not responding on RL trials: %d', length(ExcludedSubjs_rlresp$subject))
+c(ExcludedSubjs_rlresp$subject)
+
+# Filter out subjects that just did one response on over 90% of trials
+ExcludedSubjs_rloneresp = testData_noExclusions %>% filter(trialType == 'rl', !is.na(key_press)) %>% group_by(subject,key_press) %>% dplyr::summarise(counts = n()) %>% filter(counts > floor(nRLTrials*.9))
+ggplot(ExcludedSubjs_rloneresp, aes(x = subject, y = counts)) + geom_bar(stat = 'identity')
+sprintf('N subjects excluded for repeatedly making one response: %d', length(ExcludedSubjs_rloneresp$subject))
+c(ExcludedSubjs_rloneresp$subject)
+
+# Compile list of subs
+ExcludedSubs = unique(c(ExcludedSubjs_freqaccu$subject,ExcludedSubjs_rlresp$subject,ExcludedSubjs_rloneresp$subject))
+
+# filter out their data
+testData = testData_noExclusions %>% filter(!(subject %in% ExcludedSubs))
+
+subjNums = unique(testData$subject)
+N = length(subjNums)
+
+sprintf('N subjects BEFORE EXCLUSIONS: %d', length(unique(testData_noExclusions$subject)))
+sprintf('N subjects AFTER EXCLUSIONS: %d', length(unique(testData$subject)))
+```
+# Trial numbers
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+trialCounts = testData %>% group_by(subject, trialType) %>% filter(!is.na(rt)) %>% dplyr::summarise(counts = n()) %>% group_by(trialType) %>% dplyr::summarise(avgCounts = mean(counts))
+trialCounts
+runLength = testData %>% group_by(subject,blockNum) %>% filter(trialType %in% c('freq','infreq')) %>% dplyr::summarise(counts = n())
+max(runLength$counts)
+min(runLength$counts)
+```
+
+\newpage
+# Sustained attention task
+## Accuracy on Attention trials across subjects
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+accuracyOverall = testData %>% filter(trialType %in% c("freq","infreq")) %>% summarize(accuracy = mean(corr,na.rm = TRUE))
+accuracyByCond = testData %>% filter(trialType %in% c("freq","infreq")) %>% group_by(trialType)%>% dplyr::summarise(accuracy = mean(corr,na.rm = TRUE))
+accuracies = data.frame(accuracyOverall$accuracy, accuracyByCond$accuracy[1], accuracyByCond$accuracy[2])
+colnames(accuracies)[1:3] <- c("Overall","Frequent", "Infrequent")
+kable(accuracies, format = "markdown", align = 'c', row.names=F, caption = 'Accuracy')
+```
+
+## Basic attention performance (accuracy)
+```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=4, fig.align='center'}
+# Overall accuracy
+accuracyOverall = testData %>% group_by(subject) %>% filter(trialType %in% c("freq","infreq")) %>% dplyr::summarize(accuracy = mean(corr,na.rm = TRUE))
+accuracyByCond = testData %>% filter(trialType %in% c("freq","infreq")) %>% group_by(subject,trialType)%>% dplyr::summarise(accuracy = mean(corr,na.rm = TRUE)) %>% group_by(trialType) %>% dplyr::summarize(accu = mean(accuracy), sdaccu = sd(accuracy))
+
+accuracyByCond_subj = testData %>% filter(trialType %in% c("freq","infreq")) %>% group_by(subject,trialType)%>% dplyr::summarise(accuracy = mean(corr,na.rm = TRUE))
+accuracies = data.frame(mean(accuracyOverall$accuracy), mean(accuracyByCond$accu[accuracyByCond$trialType=='freq']), mean(accuracyByCond$accu[accuracyByCond$trialType=='infreq']))
+colnames(accuracies)[1:3] <- c("Overall","Frequent", "Infrequent")
+kable(accuracies, format = "markdown", align = 'c', row.names=F, caption = 'Accuracy')
+t.test(accuracyByCond_subj$accuracy[accuracyByCond_subj$trialType=='freq'], accuracyByCond_subj$accuracy[accuracyByCond_subj$trialType=='infreq'], paired = TRUE)
+cohens_d(data.frame(accuracyByCond_subj),accuracy ~ trialType,paired = TRUE)
+
+# Accuracy by attention type
+accuracyByCondBySubj = testData %>%filter(trialType %in% c("freq","infreq")) %>% group_by(subject,trialType)%>% dplyr::summarise(accuracy = mean(na.omit(corr)))
+ggplot(accuracyByCondBySubj, aes(x = trialType, y = accuracy))+geom_bar(stat = "summary", fun = "mean")+geom_jitter(width = .1)+labs(y = ' Accuracy')+scale_x_discrete(name = 'Attention Trial Type', labels = c('Frequent', 'Infrequent'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,1))
+ggsave('Expt3_freqinfreqatt_dots.eps')
+# Accuracy by attention type with error bars
+summaryStats = Rmisc::summarySEwithin(accuracyByCondBySubj,measurevar="accuracy", withinvars=c("trialType"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(summaryStats, aes(x = trialType, y = accuracy))+
+  geom_bar(stat = "summary", fun = "mean")+
+  labs(y = ' Accuracy')+
+  geom_errorbar(aes(ymin=accuracy-se, ymax=accuracy+se), width=.2,position=position_dodge(.9),size = 1.5)+
+  scale_x_discrete(name = 'Attention Trial Type', labels = c('Frequent', 'Infrequent'))+
+  theme(axis.title.x = element_text(size = 24, face = 'bold'),
+        axis.title.y = element_text(size = 24, face = 'bold'),
+        axis.text.x = element_text(size = 22),
+        axis.text.y = element_text(size = 22),
+        axis.line = element_line(size = 2),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+ 
+  scale_y_continuous(expand = c(0,0), limits=c(0,1))
+ggsave('Expt3_freqinfreqatt_bars.eps')
+
+```
+<p>Trailing RT and accuracy on infreq trials</p>
+```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=4, fig.align='center'}
+attTrials = testData %>%filter(trialType %in% c("freq","infreq")) 
+# loop over subjects
+allcorrRT = NA
+allincorrRT = NA
+allcorrRT_cv = NA
+allincorrRT_cv = NA
+for(ai in 1:N){
+  subjData = filter(attTrials, subject == subjNums[ai])
+  idx = which(subjData$trialType == 'infreq')
+  corrRT = NA
+  incorrRT = NA
+  corrCV = NA
+  incorrCV = NA
+  for(bi in 1:length(idx)){
+    if (idx[bi]>3){
+    if(sum(subjData$trialType[(idx[bi]-3):(idx[bi]-1)] == 'freq') == 3){
+      if(subjData$corr[idx[bi]]==1){
+        corrRT[bi] = mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+        corrCV[bi] = sd(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)/mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+        
+      }else if(subjData$corr[idx[bi]]==0){
+        incorrRT[bi] = mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+        incorrCV[bi] = sd(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)/mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+      }
+    }
+  }}
+  allcorrRT[ai] = mean(corrRT,na.rm = TRUE)
+  allincorrRT[ai] = mean(incorrRT,na.rm = TRUE)
+  allcorrRT_cv[ai] = mean(corrCV,na.rm = TRUE)
+  allincorrRT_cv[ai] = mean(incorrCV,na.rm = TRUE)
+}
+
+trailingRT = data.frame('subject' = subjNums, 'corrTrail' = allcorrRT,'incorrTrail' = allincorrRT) %>% pivot_longer(cols = c(corrTrail,incorrTrail),names_to= 'corrIncorr',values_to = 'avgRT')
+ggplot(trailingRT, aes(x = corrIncorr, y = avgRT))+geom_bar(stat = "summary", fun = "mean")+geom_point(alpha = .5)+labs(y = 'Trailing average RT (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,425))
+t.test(trailingRT$avgRT[trailingRT$corrIncorr=='corrTrail'],trailingRT$avgRT[trailingRT$corrIncorr=='incorrTrail'],paired = TRUE)
+cohens_d(data.frame(trailingRT),avgRT ~ corrIncorr,paired = TRUE)
+
+trailingRT_summary = summarySEwithin(trailingRT,measurevar="avgRT", withinvars=c("corrIncorr"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(trailingRT_summary, aes(x = corrIncorr, y = avgRT))+geom_bar(stat = "identity")+geom_errorbar(aes(ymin=avgRT-se, ymax=avgRT+se), width=.2,position=position_dodge(.9))+labs(y = 'Trailing average RT (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,425))
+#ggsave('expt3_trailingRT.eps')
+
+trailingCV = data.frame('subject' = subjNums, 'corrTrail' = allcorrRT_cv,'incorrTrail' = allincorrRT_cv) %>% pivot_longer(cols = c(corrTrail,incorrTrail),names_to= 'corrIncorr',values_to = 'cv')
+ggplot(trailingCV, aes(x = corrIncorr, y = cv))+geom_bar(stat = "summary", fun = "mean")+geom_point(alpha = .5)+labs(y = 'Trailing average cv(RT) (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0))
+t.test(trailingCV$cv[trailingCV$corrIncorr=='corrTrail'],trailingCV$cv[trailingCV$corrIncorr=='incorrTrail'],paired = TRUE)
+cohens_d(data.frame(trailingCV),cv ~ corrIncorr,paired = TRUE)
+
+trailingCV_summary = summarySEwithin(trailingCV,measurevar="cv", withinvars=c("corrIncorr"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(trailingCV_summary, aes(x = corrIncorr, y = cv))+geom_bar(stat = "identity")+geom_errorbar(aes(ymin=cv-se, ymax=cv+se), width=.2,position=position_dodge(.9))+labs(y = 'Trailing average RT (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,.3))
+#ggsave('expt3_trailingCV.eps')
+```
+
+
+\newpage
+# RT Data for Attention Trials
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+rtOverall = testData %>% filter(trialType %in% c("freq","infreq"),corr == 1) %>% dplyr::summarize(avgRT = mean(na.omit(rt)))
+rtByCond = testData %>% filter(trialType %in% c("freq","infreq"),corr == 1) %>% group_by(trialType)%>%  dplyr::summarise(avgRT = mean(na.omit(rt)))
+rts = data.frame(rtOverall$avgRT, rtByCond$avgRT[1], rtByCond$avgRT[2])
+colnames(rts)[1:3] <- c("Overall","Frequent", "Infrequent")
+kable(rts, format = "markdown", align = 'c', row.names=F, caption = 'Average RT by attType')
+```
+\newpage
+# Reward schedule
+## RT on slot machine trials
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
+slotData = testData %>% filter(trialType == "reward") %>% group_by(subject)
+slotRTBySubj = slotData %>%  dplyr::summarize(avgRT = mean(na.omit(rt))) 
+
+ggplot(slotRTBySubj, aes(x = subject, y = avgRT))+geom_bar(stat = "identity")
+
+# also histogram of people with high averages
+slotRTBySubj_long = slotRTBySubj %>% filter(avgRT > 2000)
+
+slotData %>% filter(subject %in% c(slotRTBySubj_long$subject), rt > 2000) %>% ggplot(aes(x = rt))+geom_histogram()+facet_wrap(~subject)
+
+# calculate 2sd over mean rt on these and exclude
+slotRT_stats = testData %>% filter(trialType == 'reward') %>% group_by(subject) %>% dplyr::summarise(avgRT = mean(rt, na.rm = TRUE), sdRT = sd(rt, na.rm= TRUE))
+
+testData$rewardLongRT = NA
+testData$rewardLongRT[testData$subject %in% slotRTBySubj_long$subject] = 1
+```
+
+## Reward on each trial (schedule)
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
+pointsData = testData %>% filter(trialType == 'points')
+ggplot(pointsData, aes(x = blockNum, y = points))+geom_line()
+```
+\newpage
+## accu infreq x reward sign
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
+
+# set up column for 5 quantiles of rewards
+rewardSched = c(-6,-11,-7,-3,1,-7,-6,-4,-3,5,-5,-12,19,8,15,13,2,8,4,-6,-4,-1,-11,-2,1,-19,-33,-2,12,14,15,13,19,26,4,0,10,12,20,4,2,-2,-3,-3,-2,-32,6,10,8,6,12,-1,3,10,4,-10,-9,-4,7,-1,9,5,7,-7,0,-2,5,-2,4,19,-1,16,12,13, 15, 10)
+quantilesReward = split_quantile(rewardSched,5) # Using 5 bc the design was veryLow/Low/avg/high/veryHigh
+
+maxVL = max(rewardSched[which(quantilesReward == 1)])
+maxL = max(rewardSched[which(quantilesReward == 2)])
+maxAvg = max(rewardSched[which(quantilesReward == 3)])
+maxH = max(rewardSched[which(quantilesReward == 4)])
+maxVH = max(rewardSched[which(quantilesReward == 5)])
+minVL = min(rewardSched[which(quantilesReward == 1)])
+minL = min(rewardSched[which(quantilesReward == 2)])
+minAvg = min(rewardSched[which(quantilesReward == 3)])
+minH = min(rewardSched[which(quantilesReward == 4)])
+minVH = min(rewardSched[which(quantilesReward == 5)])
+
+rlData = testData %>% filter(trialType == 'points')
+
+rlData$pointQuantile = NA
+rlData$pointCategory = NA
+rlData$pointSign = NA
+
+rlData$pointCategory[rlData$points > maxH] = 'veryHigh'
+rlData$pointCategory[rlData$points <= maxH] = 'high'
+rlData$pointCategory[rlData$points <= maxAvg] = 'avg'
+rlData$pointCategory[rlData$points <= maxL] = 'low'
+rlData$pointCategory[rlData$points <= maxVL] = 'veryLow'
+
+rlData$pointQuantile[rlData$points > maxH] = 1
+rlData$pointQuantile[rlData$points <= maxH] = 2
+rlData$pointQuantile[rlData$points <= maxAvg] = 3
+rlData$pointQuantile[rlData$points <= maxL] = 4
+rlData$pointQuantile[rlData$points <= maxVL] = 5
+
+rlData$pointSign[rlData$points>0] = 'pos'
+rlData$pointSign[rlData$points<=0] = 'neg'
+
+# now add columns for attention performance
+rlData$accu_infreq = NA
+rlData$avgRT_freq = NA
+rlData$sdRT_freq = NA
+rlData$CV = NA
+
+for(ai in 1:N){
+  for(bi in 1:(max(rlData$blockNum)-1)){
+    idxRel_infreq = which(testData$subject == subjNums[ai] & testData$blockNum == (bi+1) & testData$trialType == 'infreq')
+    idxRel_freq = which(testData$subject == subjNums[ai] & testData$blockNum == (bi+1) & testData$trialType == 'freq')
+    
+    accu_infreq = mean(testData$corr[idxRel_infreq],na.rm = TRUE)
+    avgRT_freq = mean(testData$rt[idxRel_freq],na.rm = TRUE)
+    sdRT_freq = sd(testData$rt[idxRel_freq],na.rm = TRUE)
+    cvRT_freq = sdRT_freq/avgRT_freq
+
+    rlData$accu_infreq[which(rlData$subject == subjNums[ai] & rlData$blockNum == bi)] = accu_infreq
+    rlData$avgRT_freq[which(rlData$subject == subjNums[ai] & rlData$blockNum == bi)] = avgRT_freq
+    rlData$sdRT_freq[which(rlData$subject == subjNums[ai] & rlData$blockNum == bi)] = sdRT_freq
+    rlData$CV[which(rlData$subject == subjNums[ai] & rlData$blockNum == bi)] = cvRT_freq
+
+  }
+}
+
+# plot
+rewardSignAttPlotArray = rlData %>% group_by(subject,pointSign) %>% dplyr::summarise(avgAccu = mean(accu_infreq,na.rm = TRUE),avgRT = mean(avgRT_freq,na.rm = TRUE),avgSDRT= mean(sdRT_freq,na.rm = TRUE),avgCV = mean(CV,na.rm = TRUE))
+ggplot(rewardSignAttPlotArray, aes(x = pointSign, y = avgAccu)) + geom_bar(stat = "summary", fun = "mean")+geom_point()
+
+t.test(rewardSignAttPlotArray$avgAccu[rewardSignAttPlotArray$pointSign == 'neg'],rewardSignAttPlotArray$avgAccu[rewardSignAttPlotArray$pointSign == 'pos'],paired = TRUE)
+
+rewardSignAttPlotArray_strict = rlData %>% filter(is.na(rewardLongRT)) %>%group_by(subject,pointSign) %>% dplyr::summarise(avgAccu = mean(accu_infreq,na.rm = TRUE),avgRT = mean(avgRT_freq,na.rm = TRUE),avgSDRT= mean(sdRT_freq,na.rm = TRUE),avgCV = mean(CV,na.rm = TRUE))
+ggplot(rewardSignAttPlotArray_strict, aes(x = pointSign, y = avgAccu)) + geom_bar(stat = "summary", fun = "mean")+geom_point()
+
+t.test(rewardSignAttPlotArray_strict$avgAccu[rewardSignAttPlotArray_strict$pointSign == 'neg'],rewardSignAttPlotArray_strict$avgAccu[rewardSignAttPlotArray_strict$pointSign == 'pos'],paired = TRUE)
+
+```
+
+# Detrend CV and accu
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+rlData$avgRT_detrend = NA
+rlData$coefVar_detrend = NA
+rlData$accuracy_infreq_detrend = NA
+rlData$coefVar_prev_detrend = NA
+rlData$accuracy_infreq_prev_detrend = NA
+for(si in 1:N){
+  subData = rlData %>% filter(subject == subjNums[si], !is.na(CV),!is.na(accu_infreq)) # get subject data
+  sub_avgRT = c(t(subData$avgRT_freq)) # get rt column and transpose
+  sub_coefVar = c(t(subData$CV)) # get cv column and transpose
+  sub_accuracy_infreq = c(t(subData$accu_infreq))# get accuracy column and transpose
+  
+  sub_avgRT_detrend = detrend(sub_avgRT)
+  sub_coefVar_detrend = detrend(sub_coefVar)
+  sub_accuracy_infreq_detrend = detrend(sub_accuracy_infreq)
+  
+  rlData$avgRT_detrend[rlData$subject == subjNums[si]] = sub_avgRT_detrend
+  rlData$coefVar_detrend[rlData$subject == subjNums[si]] = sub_coefVar_detrend
+  rlData$accuracy_infreq_detrend[rlData$subject == subjNums[si]] = sub_accuracy_infreq_detrend
+
+}
+
+detrendcheck = rlData %>% group_by(blockNum) %>% filter(!is.na(accu_infreq), !is.na(CV))%>% dplyr::summarize(avgAccu = mean(accu_infreq,na.rm = TRUE), seAccu = se(accu_infreq),avgCV = mean(CV,na.rm = TRUE), seCV= se(CV),avgAccu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), seAccu_detrend = se(accuracy_infreq_detrend),avgCV_detrend = mean(coefVar_detrend,na.rm = TRUE), seCV_detrend= se(coefVar_detrend), avgRT = mean(avgRT_freq,na.rm = TRUE), avgRT_detrend = mean(avgRT_detrend,na.rm = TRUE))
+
+ggplot(detrendcheck, aes(x = blockNum, y = avgRT))+geom_line()
+ggplot(detrendcheck, aes(x = blockNum, y = avgRT_detrend))+geom_line()
+
+ggplot(detrendcheck, aes(x = blockNum, y = avgAccu))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgAccu-seAccu, ymax = avgAccu+seAccu),alpha = .5)
+ggplot(detrendcheck, aes(x = blockNum, y = avgAccu_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgAccu_detrend-seAccu_detrend, ymax = avgAccu_detrend+seAccu_detrend),alpha = .5)
+
+ggplot(detrendcheck, aes(x = blockNum, y = avgCV))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV-seCV, ymax = avgCV+seCV),alpha = .5)
+ggplot(detrendcheck, aes(x = blockNum, y = avgCV_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV_detrend-seCV_detrend, ymax = avgCV_detrend+seCV_detrend),alpha = .5)
+```
+## CVRT x reward sign
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
+# plot
+ggplot(rewardSignAttPlotArray, aes(x = pointSign, y = avgCV)) + geom_bar(stat = "summary", fun = "mean")+geom_point()
+t.test(rewardSignAttPlotArray$avgCV[rewardSignAttPlotArray$pointSign == 'neg'],rewardSignAttPlotArray$avgCV[rewardSignAttPlotArray$pointSign == 'pos'],paired = TRUE)
+
+ggplot(rewardSignAttPlotArray_strict, aes(x = pointSign, y = avgCV)) + geom_bar(stat = "summary", fun = "mean")+geom_point()
+t.test(rewardSignAttPlotArray_strict$avgCV[rewardSignAttPlotArray_strict$pointSign == 'neg'],rewardSignAttPlotArray_strict$avgCV[rewardSignAttPlotArray_strict$pointSign == 'pos'],paired = TRUE)
+
+```
+
+## reward sign x detrended accu and cv
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
+attxreward_detrend = rlData %>% group_by(subject, pointSign) %>% dplyr::summarise(accu = mean(accuracy_infreq_detrend, na.rm = TRUE), cv = mean(coefVar_detrend, na.rm = TRUE), avgRT = mean(avgRT_detrend))
+ggplot(attxreward_detrend, aes(x = pointSign, y = avgRT))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+
+ggplot(attxreward_detrend, aes(x = pointSign, y = accu))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+ggplot(attxreward_detrend, aes(x = pointSign, y = cv))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+t.test(attxreward_detrend$accu[attxreward_detrend$pointSign == 'pos'],attxreward_detrend$accu[attxreward_detrend$pointSign == 'neg'], paired = TRUE)
+mean(attxreward_detrend$accu[attxreward_detrend$pointSign == 'pos'])
+mean(attxreward_detrend$accu[attxreward_detrend$pointSign == 'neg'])
+
+t.test(attxreward_detrend$cv[attxreward_detrend$pointSign == 'pos'],attxreward_detrend$cv[attxreward_detrend$pointSign == 'neg'], paired = TRUE)
+cohens_d(data.frame(attxreward_detrend),cv ~ pointSign,paired = TRUE)
+
+mean(attxreward_detrend$cv[attxreward_detrend$pointSign == 'pos'])
+mean(attxreward_detrend$cv[attxreward_detrend$pointSign == 'neg'])
+
+ggplot(attxreward_detrend, aes(x = pointSign, y = accu))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()+facet_wrap(~subject)
+ggplot(attxreward_detrend, aes(x = pointSign, y = cv))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()+facet_wrap(~subject)
+
+```
+\newpage
+# Accu then cv - median split on negative POINTS; 
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+accucv_medSplit_negreward = rlData %>% filter(points <= 0) %>% group_by(subject) %>% mutate(medSplit = split_quantile(points,2)) %>%group_by(subject,medSplit) %>% dplyr::summarise(accu = mean(accu_infreq,na.rm = TRUE), cv = mean(CV, na.rm = TRUE),accu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), cv_detrend = mean(coefVar_detrend, na.rm = TRUE))
+
+accucv_medSplit_negreward_wide = accucv_medSplit_negreward %>% pivot_wider(names_from = medSplit, values_from = c(accu, cv, accu_detrend, cv_detrend)) %>% mutate(deltaAccu = accu_1-accu_2, deltaCV = cv_1-cv_2,deltaAccu_detrend = accu_detrend_1-accu_detrend_2, deltaCV_detrend = cv_detrend_1-cv_detrend_2)
+sum(accucv_medSplit_negreward_wide$deltaAccu>0)
+sum(accucv_medSplit_negreward_wide$deltaCV>0)
+sum(accucv_medSplit_negreward_wide$deltaAccu_detrend>0)
+sum(accucv_medSplit_negreward_wide$deltaCV_detrend>0)
+
+ggplot(accucv_medSplit_negreward, aes(x = medSplit, y = accu))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+ggplot(accucv_medSplit_negreward, aes(x = medSplit, y = cv))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+
+ggplot(accucv_medSplit_negreward, aes(x = medSplit, y = accu_detrend))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+ggplot(accucv_medSplit_negreward, aes(x = medSplit, y = cv_detrend))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+
+t.test(accucv_medSplit_negreward$accu[accucv_medSplit_negreward$medSplit==1],accucv_medSplit_negreward$accu[accucv_medSplit_negreward$medSplit==2], paired = TRUE)
+t.test(accucv_medSplit_negreward$cv[accucv_medSplit_negreward$medSplit==1],accucv_medSplit_negreward$cv[accucv_medSplit_negreward$medSplit==2], paired = TRUE)
+t.test(accucv_medSplit_negreward$accu_detrend[accucv_medSplit_negreward$medSplit==1],accucv_medSplit_negreward$accu_detrend[accucv_medSplit_negreward$medSplit==2], paired = TRUE)
+t.test(accucv_medSplit_negreward$cv_detrend[accucv_medSplit_negreward$medSplit==1],accucv_medSplit_negreward$cv_detrend[accucv_medSplit_negreward$medSplit==2], paired = TRUE)
+```
+
+# accu then cv - median split on positive points
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+accucv_medSplit_posreward = rlData %>% filter(points > 0) %>% group_by(subject) %>% mutate(medSplit = split_quantile(points,2)) %>%group_by(subject,medSplit) %>% dplyr::summarise(accu = mean(accu_infreq,na.rm = TRUE), cv = mean(CV, na.rm = TRUE),accu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), cv_detrend = mean(coefVar_detrend, na.rm = TRUE))
+
+accucv_medSplit_posreward_wide = accucv_medSplit_posreward %>% pivot_wider(names_from = medSplit, values_from = c(accu, cv, accu_detrend, cv_detrend)) %>% mutate(deltaAccu = accu_1-accu_2, deltaCV = cv_1-cv_2,deltaAccu_detrend = accu_detrend_1-accu_detrend_2, deltaCV_detrend = cv_detrend_1-cv_detrend_2)
+sum(accucv_medSplit_posreward_wide$deltaAccu>0)
+sum(accucv_medSplit_posreward_wide$deltaCV>0)
+sum(accucv_medSplit_posreward_wide$deltaAccu_detrend>0)
+sum(accucv_medSplit_posreward_wide$deltaCV_detrend>0)
+
+ggplot(accucv_medSplit_posreward, aes(x = medSplit, y = accu))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+ggplot(accucv_medSplit_posreward, aes(x = medSplit, y = cv))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+
+ggplot(accucv_medSplit_posreward, aes(x = medSplit, y = accu_detrend))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+ggplot(accucv_medSplit_posreward, aes(x = medSplit, y = cv_detrend))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
+
+t.test(accucv_medSplit_posreward$accu[accucv_medSplit_posreward$medSplit==1],accucv_medSplit_posreward$accu[accucv_medSplit_posreward$medSplit==2], paired = TRUE)
+t.test(accucv_medSplit_posreward$cv[accucv_medSplit_posreward$medSplit==1],accucv_medSplit_posreward$cv[accucv_medSplit_posreward$medSplit==2], paired = TRUE)
+t.test(accucv_medSplit_posreward$accu_detrend[accucv_medSplit_posreward$medSplit==1],accucv_medSplit_posreward$accu_detrend[accucv_medSplit_posreward$medSplit==2], paired = TRUE)
+t.test(accucv_medSplit_posreward$cv_detrend[accucv_medSplit_posreward$medSplit==1],accucv_medSplit_posreward$cv_detrend[accucv_medSplit_posreward$medSplit==2], paired = TRUE)
+```
+# accu then cv - median split on REWARD TRIALS DETRENDED
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+accucv_medSplit_negreward$order = NA
+accucv_medSplit_negreward$order[accucv_medSplit_negreward$medSplit ==1] = 'a_largenegrew'
+accucv_medSplit_negreward$order[accucv_medSplit_negreward$medSplit ==2] = 'b_smallnegrew'
+
+accucv_medSplit_posreward$order = NA
+accucv_medSplit_posreward$order[accucv_medSplit_posreward$medSplit ==1] = 'c_smallposrew'
+accucv_medSplit_posreward$order[accucv_medSplit_posreward$medSplit ==2] = 'd_largeposrew'
+
+accucv_medSplit_posnegreward_detrend = rbind(accucv_medSplit_posreward, accucv_medSplit_negreward)
+summary_accu_medSplit_posnegreward_detrend = summarySEwithin(data.frame(accucv_medSplit_posnegreward_detrend), measurevar = 'accu_detrend',withinvars = c('order'), idvar = 'subject')
+summary_cv_medSplit_posnegreward_detrend = summarySEwithin(data.frame(accucv_medSplit_posnegreward_detrend), measurevar = 'cv_detrend',withinvars = c('order'), idvar = 'subject')
+
+ggplot(summary_cv_medSplit_posnegreward_detrend, aes(x = order, y = cv_detrend))+geom_point()+geom_errorbar(aes(ymin = cv_detrend-se, ymax = cv_detrend+se, width = 0))+
+  theme(axis.line=element_line(),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black")
+        ,panel.border = element_rect(fill = NA, colour = "white"))
+#ggsave('pSARL_cv_detrend_medsplit_splitreward.eps')
+
+ggplot(summary_accu_medSplit_posnegreward_detrend, aes(x = order, y = accu_detrend))+geom_point()+geom_errorbar(aes(ymin = accu_detrend-se, ymax = accu_detrend+se, width = 0))+
+  theme(axis.line=element_line(),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black")
+        ,panel.border = element_rect(fill = NA, colour = "white"))
+#ggsave('pSARL_accu_detrend_medsplit_splitreward.eps')
+
+```
+# SA performance (cv_detrend) by rewardSign
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+cvrewardsign_detrend = rlData %>% group_by(subject,pointSign) %>% dplyr::summarize(cv_detrend = mean(coefVar_detrend,na.rm = TRUE), cv = mean(CV, na.rm =TRUE))
+summaryStats_cvrewardsign_detrend = Rmisc::summarySEwithin(cvrewardsign_detrend,measurevar="cv_detrend", withinvars=c("pointSign"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+summaryStats_cvrewardsign = Rmisc::summarySEwithin(cvrewardsign_detrend,measurevar="cv", withinvars=c("pointSign"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+
+ggplot(summaryStats_cvrewardsign, aes(x = pointSign, y = cv))+
+  geom_point(size = 3)+
+  scale_x_discrete(name = 'reward sign')+
+  labs(y = 'cv',x = 'reward sign')+
+  theme(axis.title.x = element_text(size = 22, face = 'bold'), 
+        axis.title.y = element_text(size = 22, face = 'bold'),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20), 
+        axis.line = element_line(colour = 'black', size = 2),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+
+  geom_errorbar(aes(ymin=cv-se, ymax=cv+se),size = 1.5, width=0)
+#ggsave('rewardsigncv.eps')
+t.test(cvrewardsign_detrend$cv[cvrewardsign_detrend$pointSign == 'pos'],cvrewardsign_detrend$cv[cvrewardsign_detrend$pointSign == 'neg'],paired = TRUE)
+
+ggplot(summaryStats_cvrewardsign_detrend, aes(x = pointSign, y = cv_detrend))+
+  geom_point(size = 3)+
+  scale_x_discrete(name = 'reward sign')+
+  labs(y = 'cv_detrend',x = 'reward sign')+
+  theme(axis.title.x = element_text(size = 22, face = 'bold'), 
+        axis.title.y = element_text(size = 22, face = 'bold'),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20), 
+        axis.line = element_line(colour = 'black', size = 2),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+
+  geom_errorbar(aes(ymin=cv_detrend-se, ymax=cv_detrend+se),size = 1.5, width=0)
+#ggsave('pSARL_rewardsigncv_detrend.eps')
+
+t.test(cvrewardsign_detrend$cv_detrend[cvrewardsign_detrend$pointSign == 'pos'],cvrewardsign_detrend$cv_detrend[cvrewardsign_detrend$pointSign == 'neg'],paired = TRUE)
+cohen.d(cvrewardsign_detrend$cv_detrend[cvrewardsign_detrend$pointSign == 'pos'], cvrewardsign_detrend$cv_detrend[cvrewardsign_detrend$pointSign == 'neg'],paired = TRUE)
+
+```
+# SA performance (accuracy_infreq_detrend) by rewardSign
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+#accuReward = rlData_noNan %>% group_by(subject,rewardSign) %>% dplyr::summarize(avgAcc = mean(accuracy_infreq,na.rm = TRUE)) #*** update when you do rl code
+accurewardsign_detrend = rlData %>% group_by(subject,pointSign) %>% dplyr::summarize(accu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), accu = mean(accu_infreq, na.rm = TRUE))
+summaryStats_accurewardsign_detrend = Rmisc::summarySEwithin(accurewardsign_detrend,measurevar="accu_detrend", withinvars=c("pointSign"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+summaryStats_accurewardsign = Rmisc::summarySEwithin(accurewardsign_detrend,measurevar="accu", withinvars=c("pointSign"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+
+ggplot(summaryStats_accurewardsign, aes(x = pointSign, y = accu))+
+  geom_point(size = 3)+
+  scale_x_discrete(name = 'reward sign')+
+  labs(y = 'accu',x = 'reward sign')+
+  theme(axis.title.x = element_text(size = 22, face = 'bold'), 
+        axis.title.y = element_text(size = 22, face = 'bold'),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20), 
+        axis.line = element_line(colour = 'black', size = 2),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+
+  geom_errorbar(aes(ymin=accu-se, ymax=accu+se),size = 1.5, width=0)
+#ggsave('rewardsignaccu.eps')
+
+t.test(accurewardsign_detrend$accu[accurewardsign_detrend$pointSign == 'pos'],accurewardsign_detrend$accu[accurewardsign_detrend$pointSign == 'neg'],paired = TRUE)
+ggplot(summaryStats_accurewardsign_detrend, aes(x = pointSign, y = accu_detrend))+
+  geom_point(size = 3)+
+  scale_x_discrete(name = 'reward sign')+
+  labs(y = 'accu_detrend',x = 'reward sign')+
+  theme(axis.title.x = element_text(size = 22, face = 'bold'), 
+        axis.title.y = element_text(size = 22, face = 'bold'),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20), 
+        axis.line = element_line(colour = 'black', size = 2),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+
+  geom_errorbar(aes(ymin=accu_detrend-se, ymax=accu_detrend+se),size = 1.5, width=0)
+
+#ggsave('pSARL_rewardsignaccu_detrend.eps')
+mean(accurewardsign_detrend$accu_detrend[accurewardsign_detrend$pointSign == 'pos'])
+mean(accurewardsign_detrend$accu_detrend[accurewardsign_detrend$pointSign == 'neg'])
+
+t.test(accurewardsign_detrend$accu_detrend[accurewardsign_detrend$pointSign == 'pos'],accurewardsign_detrend$accu_detrend[accurewardsign_detrend$pointSign == 'neg'],paired = TRUE)
+cohen.d(accurewardsign_detrend$accu_detrend[accurewardsign_detrend$pointSign == 'pos'], accurewardsign_detrend$accu_detrend[accurewardsign_detrend$pointSign == 'neg'],paired = TRUE)
+```
+
+\newpage
+# exclude blocks where they zone out
+# Detrend CV and accu
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+# exclude blocks where it takes them > 1500ms to respond to the reward trial
+rewards = testData %>% filter(trialType == 'reward')
+rlData$rt = rewards$rt
+rlData$longRTs = NA
+rlData$longRTs[rlData$rt > 1500] = 1
+
+rlData_noNan = rlData %>% filter(is.na(longRTs))
+rlData_noNan$avgRT_detrend = NA
+rlData_noNan$coefVar_detrend = NA
+rlData_noNan$accuracy_infreq_detrend = NA
+rlData_noNan$coefVar_prev_detrend = NA
+rlData_noNan$accuracy_infreq_prev_detrend = NA
+for(si in 1:N){
+  subData = rlData_noNan %>% filter(subject == subjNums[si], !is.na(CV),!is.na(accu_infreq)) # get subject data
+  sub_avgRT = c(t(subData$avgRT_freq)) # get rt column and transpose
+  sub_coefVar = c(t(subData$CV)) # get cv column and transpose
+  sub_accuracy_infreq = c(t(subData$accu_infreq))# get accuracy column and transpose
+  #sub_coefVar_prev = c(t(subData$coefVar_prev)) # get cv column and transpose
+  #sub_accuracy_infreq_prev = c(t(subData$accuracy_infreq_prev))# get accuracy column and transpose
+  
+  sub_avgRT_detrend = detrend(sub_avgRT)
+  sub_coefVar_detrend = detrend(sub_coefVar)
+  sub_accuracy_infreq_detrend = detrend(sub_accuracy_infreq)
+  #sub_coefVar_prev_detrend = detrend(sub_coefVar_prev )
+  #sub_accuracy_infreq_prev_detrend = detrend(sub_accuracy_infreq_prev )
+  
+  rlData_noNan$avgRT_detrend[rlData_noNan$subject == subjNums[si]] = sub_avgRT_detrend
+  rlData_noNan$coefVar_detrend[rlData_noNan$subject == subjNums[si]] = sub_coefVar_detrend
+  rlData_noNan$accuracy_infreq_detrend[rlData_noNan$subject == subjNums[si]] = sub_accuracy_infreq_detrend
+  #rlData_noNan$coefVar_prev_detrend[rlData_noNan$subject == subjNums[si]] = sub_coefVar_prev_detrend
+  #rlData_noNan$accuracy_infreq_prev_detrend[rlData_noNan$subject == subjNums[si]] = sub_accuracy_infreq_prev_detrend  
+}
+
+detrendcheck_noNan = rlData_noNan %>% group_by(blockNum) %>% filter(!is.na(accu_infreq), !is.na(CV))%>% dplyr::summarize(avgAccu = mean(accu_infreq,na.rm = TRUE), seAccu = se(accu_infreq),avgCV = mean(CV,na.rm = TRUE), seCV= se(CV),avgAccu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), seAccu_detrend = se(accuracy_infreq_detrend),avgCV_detrend = mean(coefVar_detrend,na.rm = TRUE), seCV_detrend= se(coefVar_detrend), avgRT = mean(avgRT_freq,na.rm = TRUE), avgRT_detrend = mean(avgRT_detrend,na.rm = TRUE))
+
+#detrendcheck_noNan_prev = rlData_noNan %>% group_by(blockNum) %>% filter(!is.na(accu_infreq), !is.na(CV))%>% dplyr::summarize(avgAccu = mean(accuracy_infreq_prev,na.rm = TRUE), seAccu = se(accuracy_infreq_prev),avgCV = mean(coefVar_prev,na.rm = TRUE), seCV= se(coefVar_prev),avgAccu_detrend = mean(accuracy_infreq_prev_detrend,na.rm = TRUE), seAccu_detrend = se(accuracy_infreq_prev_detrend),avgCV_detrend = mean(coefVar_prev_detrend,na.rm = TRUE), seCV_detrend= se(coefVar_prev_detrend))
+
+ggplot(detrendcheck_noNan, aes(x = blockNum, y = avgRT))+geom_line()
+ggplot(detrendcheck_noNan, aes(x = blockNum, y = avgRT_detrend))+geom_line()
+
+ggplot(detrendcheck_noNan, aes(x = blockNum, y = avgAccu))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgAccu-seAccu, ymax = avgAccu+seAccu),alpha = .5)
+ggplot(detrendcheck_noNan, aes(x = blockNum, y = avgAccu_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgAccu_detrend-seAccu_detrend, ymax = avgAccu_detrend+seAccu_detrend),alpha = .5)
+
+ggplot(detrendcheck_noNan, aes(x = blockNum, y = avgCV))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV-seCV, ymax = avgCV+seCV),alpha = .5)
+ggplot(detrendcheck_noNan, aes(x = blockNum, y = avgCV_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV_detrend-seCV_detrend, ymax = avgCV_detrend+seCV_detrend),alpha = .5)
+
+#ggplot(detrendcheck_noNan_prev, aes(x = blockNum, y = avgAccu))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgAccu-seAccu, ymax = avgAccu+seAccu),alpha = .5)
+#ggplot(detrendcheck_noNan_prev, aes(x = blockNum, y = avgAccu_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgAccu_detrend-seAccu_detrend, ymax = avgAccu_detrend+seAccu_detrend),alpha = .5)
+
+#ggplot(detrendcheck_noNan_prev, aes(x = blockNum, y = avgCV))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV-seCV, ymax = avgCV+seCV),alpha = .5)
+#ggplot(detrendcheck_noNan_prev, aes(x = blockNum, y = avgCV_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV_detrend-seCV_detrend, ymax = avgCV_detrend+seCV_detrend),alpha = .5)
+
+```
+## reward sign x detrended accu and cv
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
+attxreward_detrend_noNan = rlData_noNan %>% group_by(subject, pointSign) %>% dplyr::summarise(accu = mean(accuracy_infreq_detrend, na.rm = TRUE), cv = mean(coefVar_detrend, na.rm = TRUE))
+
+ggplot(attxreward_detrend_noNan, aes(x = pointSign, y = accu))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+ggplot(attxreward_detrend_noNan, aes(x = pointSign, y = cv))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+t.test(attxreward_detrend_noNan$accu[attxreward_detrend_noNan$pointSign == 'pos'],attxreward_detrend_noNan$accu[attxreward_detrend_noNan$pointSign == 'neg'], paired = TRUE)
+t.test(attxreward_detrend_noNan$cv[attxreward_detrend_noNan$pointSign == 'pos'],attxreward_detrend_noNan$cv[attxreward_detrend_noNan$pointSign == 'neg'], paired = TRUE)
+
+```
+# time on task: accu on infreq over blocks
+```{r, echo=F, message=F, warning=F, error=T, fig.width=8, fig.height=6, fig.align='center'}
+accuxblocksTOT = rlData %>% group_by(blockNum) %>% filter(!is.na(accu_infreq),!is.na(CV)) %>% dplyr::summarise(accu = mean(accu_infreq,na.rm = TRUE), seAccu = se(accu_infreq),avgCV = mean(CV, na.rm = TRUE),seCV = se(CV))
+totCorrels = rlData %>% group_by(subject) %>% filter(!is.na(accu_infreq), !is.na(CV)) %>% dplyr::summarise(accuCorrel = cor(blockNum, accu_infreq,method = 'spearman'), cvCorrel = cor(blockNum, CV,method = 'spearman'))
+mean(totCorrels$accuCorrel)
+sd(totCorrels$accuCorrel)
+
+mean(totCorrels$cvCorrel)
+sd(totCorrels$cvCorrel)
+
+t.test(totCorrels$accuCorrel, mu = 0)
+t.test(totCorrels$cvCorrel, mu = 0)
+
+ggplot(accuxblocksTOT, aes(x = blockNum,y = accu))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = accu-seAccu, ymax = accu+seAccu), alpha = .5)
+ggplot(accuxblocksTOT, aes(x = blockNum,y = avgCV))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV-seCV, ymax = avgCV+seCV), alpha = .5)
+
+accudecrement = lmer(accu_infreq ~ blockNum+ (1|subject), data = rlData_noNan)
+summary(accudecrement)
+cvdecrement = lmer(CV ~ blockNum+ (1|subject), data = rlData_noNan)
+summary(cvdecrement)
+
+TOTcors = rlData %>% filter(!is.na(accu_infreq),!is.na(CV)) %>% group_by(subject) %>% dplyr::summarize(accuCorrel = cor(blockNum, accu_infreq), cvCorrel = cor(blockNum,CV))
+sum(TOTcors$accuCorrel<0)
+sum(TOTcors$cvCorrel<0)
+
+ggplot(TOTcors, aes(x = subject, y = accuCorrel))+geom_point()+geom_hline(yintercept = 0, color = 'red')
+ggplot(TOTcors, aes(x = subject, y = cvCorrel))+geom_point()+geom_hline(yintercept = 0, color = 'red')
+
+```
+# Correlations between attention metrics and attention x RL
+## Correlation between attention metrics
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+# Correlation between attention metrics
+attentionmetrics = rlData %>%filter(!is.na(accu_infreq), !is.na(CV))%>% group_by(subject) %>% dplyr::summarise(correlSA = cor(accu_infreq,CV, method = 'spearman'),correlSA_detrend = cor(accuracy_infreq_detrend,coefVar_detrend, method = 'spearman'))
+
+mean(attentionmetrics$correlSA)
+mean(attentionmetrics$correlSA_detrend)
+sd(attentionmetrics$correlSA)
+sd(attentionmetrics$correlSA_detrend)
+
+ggplot(attentionmetrics, aes(x = subject, y = correlSA))+geom_point()+geom_hline(yintercept = 0, color = 'red')+ggtitle('correlation between raw attention metrics by subject')
+ggplot(attentionmetrics, aes(x = subject, y = correlSA_detrend))+geom_point()+geom_hline(yintercept = 0, color = 'red')+ggtitle('correlation between detrended attention metrics by subject')
+
+t.test(attentionmetrics$correlSA, mu = 0)
+cohens_d(data.frame(attentionmetrics),correlSA ~ 1,mu = 0)
+
+t.test(attentionmetrics$correlSA_detrend, mu = 0)
+cohens_d(data.frame(attentionmetrics),correlSA_detrend ~ 1,mu = 0)
+
+```
+\newpage
+## Reward on each trial (schedule)
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
+pointsData = testData %>% filter(trialType == 'points')
+ggplot(pointsData, aes(x = blockNum, y = points))+geom_line()+
+  theme(axis.title.x = element_text(size = 18, face = 'bold'), 
+        axis.title.y = element_text(size = 18, face = 'bold'),
+        axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size = 14), 
+        axis.line = element_line(),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+ 
+  scale_y_continuous(expand = c(0,0), limits=c(-40,30), breaks = seq(-40,30,10))+ 
+  scale_x_continuous(expand = c(0,0), limits=c(0,77), breaks = seq(0,80,10))
+#ggsave('pSARLsched.eps')
+```
+
+\newpage
+# compare attention performance between the two experiments
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+length(unique(testData_SARL$subject))
+accu_all_SARL = testData_SARL %>% filter(trialType %in% c('freq', 'infreq')) %>% group_by(subject) %>% dplyr::summarise(accu = mean(corr,na.rm= TRUE), avgRT = mean(rt,na.rm = TRUE))
+accu_all_pSARL = testData %>% filter(trialType %in% c('freq', 'infreq')) %>% group_by(subject) %>% dplyr::summarise(accu = mean(corr,na.rm= TRUE), avgRT = mean(rt,na.rm = TRUE))
+accu_all_SARL$expt = NA
+accu_all_SARL$expt = 'inst'
+accu_all_pSARL$expt = NA
+accu_all_pSARL$expt = 'pass'
+accu_all = rbind(accu_all_SARL,accu_all_pSARL)
+
+t.test(accu_all_SARL$accu,accu_all_pSARL$accu)
+t.test(accu_all_SARL$avgRT,accu_all_pSARL$avgRT)
+
+cohens_d(data.frame(accu_all), avgRT~expt)
+
+t.test(accu_all_SARL$sdRT,accu_all_pSARL$sdRT)
+t.test(accu_all_SARL$cv,accu_all_pSARL$cv)
+
+accu_all_SARL_infreq = testData_SARL %>% filter(trialType %in% c('infreq')) %>% group_by(subject) %>% dplyr::summarise(accu = mean(corr,na.rm= TRUE))
+accu_all_pSARL_infreq = testData %>% filter(trialType %in% c('infreq')) %>% group_by(subject) %>% dplyr::summarise(accu = mean(corr,na.rm= TRUE), avgRT = mean(rt,na.rm = TRUE))
+
+t.test(accu_all_SARL_infreq$accu,accu_all_pSARL_infreq$accu)
+
+cv_SARL = rlData_SARL %>% group_by(subject) %>% dplyr::summarise(cv = mean(coefVar, na.rm = TRUE))
+cv_pSARL = rlData %>% group_by(subject) %>% dplyr::summarise(cv = mean(CV, na.rm = TRUE))
+t.test(cv_SARL$cv,cv_pSARL$cv)
+
+
+SARL_two_CV = rlData_SARL %>% group_by(subject, rewardSign) %>% dplyr::summarize(cv = mean(coefVar_detrend,na.rm = TRUE))
+SARL_two_CV$expt =NA
+SARL_two_CV$expt = 'inst'
+SARL_three_CV = rlData %>% group_by(subject, pointSign) %>% dplyr::summarize(cv = mean(coefVar_detrend,na.rm = TRUE))
+colnames(SARL_three_CV) = c('subject', 'rewardSign','cv')
+SARL_three_CV$expt =NA
+SARL_three_CV$expt = 'pass'
+SARL_both= rbind(SARL_two_CV,SARL_three_CV)
+anova_test(data.frame(SARL_both), dv = cv, wid = subject, within = rewardSign, between = expt, effect.size = 'pes')
+ggplot(SARL_both, aes(x = rewardSign, y = cv))+geom_bar(stat = 'summary', fun.y= 'mean')+geom_point()+facet_wrap(~expt)
+
+```
+\newpage
+# reward timecourse analysis
+```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=4, fig.align='center'}
+
+freqTrials = attData_noNan_pSARL %>% filter(trialType == 'freq',!is.na(rt),!is.na(attentionRunNum_fixed)) %>% group_by(subject) %>% dplyr::mutate(terc = split_quantile(attentionRunNum_fixed,3))
+
+freqTrials_terc = freqTrials %>% group_by(subject,blockNum,terc,rew) %>% dplyr::summarise(cv = sd(rt,na.rm = TRUE)/mean(rt, na.rm = TRUE))%>% filter(!is.na(cv))%>% group_by(subject) %>% dplyr::mutate(cv_detrend = c(detrend(c(t(cv))))) %>% filter(!is.na(rew))
+
+freqTrials_terc_rewSign = freqTrials_terc %>% group_by(subject,rew,terc) %>% dplyr::summarise(avgCV = mean(cv), avgCV_detrend = mean(cv_detrend))
+
+ggplot(freqTrials_terc_rewSign, aes(x = terc, y = avgCV))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()+facet_wrap(~rew)
+ggplot(freqTrials_terc_rewSign, aes(x = terc, y = avgCV_detrend))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()+facet_wrap(~rew)
+anova_test(data.frame(freqTrials_terc_rewSign), dv = avgCV, wid = subject, within = c(terc,rew), effect.size = 'pes')
+anova_test(data.frame(freqTrials_terc_rewSign), dv = avgCV_detrend, wid = subject, within = c(terc,rew), effect.size = 'pes')
+
+freqTrials_terc_rewSign_wide = freqTrials_terc_rewSign %>% pivot_wider(names_from = c(rew), values_from = c(avgCV,avgCV_detrend)) %>% dplyr::mutate(cv_diff = avgCV_unrew-avgCV_rew, cv_detrend_diff = avgCV_detrend_unrew-avgCV_detrend_rew)
+
+ggplot(freqTrials_terc_rewSign_wide, aes(x = terc, y = cv_diff))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+ggplot(freqTrials_terc_rewSign_wide, aes(x = terc, y = cv_detrend_diff))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+anova_test(data.frame(freqTrials_terc_rewSign_wide), dv = cv_diff, wid = subject, within = c(terc), effect.size = 'pes')
+anova_test(data.frame(freqTrials_terc_rewSign_wide), dv = cv_detrend_diff, wid = subject, within = c(terc), effect.size = 'pes')
+t.test(freqTrials_terc_rewSign_wide$cv_diff[freqTrials_terc_rewSign_wide$terc==1])
+t.test(freqTrials_terc_rewSign_wide$cv_diff[freqTrials_terc_rewSign_wide$terc==2])
+t.test(freqTrials_terc_rewSign_wide$cv_diff[freqTrials_terc_rewSign_wide$terc==3])
+
+# put last terc CV 
+freqTrials_terc_lastterc = testData %>% filter(trialType == 'freq',!is.na(rt)) %>% group_by(subject) %>% mutate(terc = split_quantile(attentionRunNum,3))%>% group_by(subject,blockNum,terc) %>% dplyr::summarise(cv = sd(rt,na.rm = TRUE)/mean(rt, na.rm = TRUE))%>% filter(!is.na(cv)) %>% group_by(subject)%>% mutate(cv_detrend = c(detrend(c(t(cv))))) %>% filter(terc == 3)
+
+```
+\newpage
+# SARL: detrend RTs then look at effect within block
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+subjNums_SARL = unique(testData_SARL$subject)
+N_SARL = length(subjNums_SARL)
+
+attData_noNan = testData_SARL %>% filter(!is.na(rt), trialType %in% c('freq','infreq'))
+
+attData_noNan$rt_detrend = NA
+for(si in 1:N_SARL){
+  subData = attData_noNan %>% filter(subject == subjNums_SARL[si]) # get subject data
+  sub_rt = c(t(subData$rt)) # get rt column and transpose
+
+  sub_rt_detrend = detrend(sub_rt)
+  
+  attData_noNan$rt_detrend[attData_noNan$subject == subjNums_SARL[si]] = sub_rt_detrend
+
+}
+# just do a few subs bc this is huge
+attData_noNan_subs = attData_noNan %>% filter(subject %in% c(subjNums_SARL[1:5]))
+ggplot(attData_noNan_subs, aes(x = trialNum, y = rt))+geom_point()+facet_wrap(~subject)
+attData_noNan_subs = attData_noNan %>% filter(subject %in% c(subjNums_SARL[1:5]))
+ggplot(attData_noNan_subs, aes(x = trialNum, y = rt_detrend))+geom_point()+facet_wrap(~subject)
+
+```
+# SARL: detrend RTs then look at effect within block
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=15, fig.align='center'}
+rtrunnum = attData_noNan %>% filter(trialType == 'freq') %>% group_by(subject, attentionRunNum) %>% dplyr::summarise(avgRT = mean(rt_detrend,na.rm = TRUE))
+
+ggplot(rtrunnum, aes(x = attentionRunNum, y = avgRT))+geom_point()+facet_wrap(~subject)
+
+rtrunnum_rew = attData_noNan %>% filter(trialType == 'freq', attentionRunNum %in% c(1,2,3)) %>% group_by(subject, rew, attentionRunNum) %>% dplyr::summarise(avgRT = mean(rt_detrend,na.rm = TRUE)) %>% filter(!is.na(rew))
+
+ggplot(rtrunnum_rew, aes(x = attentionRunNum, y = avgRT))+geom_point()+facet_wrap(~subject+rew)
+
+t.test(rtrunnum_rew$avgRT[rtrunnum_rew$attentionRunNum == 1 & rtrunnum_rew$rew == 'rew'],rtrunnum_rew$avgRT[rtrunnum_rew$attentionRunNum == 1 & rtrunnum_rew$rew == 'unrew'],paired = TRUE )
+
+```
+
+# SARL: CV in trial bins
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+checkBinNums = attData_noNan %>% group_by(subject, trialBinsFive) %>% dplyr::summarise(max(attentionRunNum), min(attentionRunNum))
+
+# calculate CV in bins for rewarded and nonrewarded
+rewoverBins = attData_noNan %>% group_by(subject,blockNum,rew,trialBins) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend)) %>% filter(!is.na(rew)) %>% group_by(subject,rew, trialBins) %>% dplyr::summarise(avgCV = mean(cv,na.rm = TRUE))
+rewoverBins_across = rewoverBins %>% group_by(rew,trialBins) %>% dplyr::summarise(avgCV = mean(avgCV, na.rm = TRUE))
+ggplot(rewoverBins_across, aes(x = trialBins, y = avgCV, color = rew))+geom_point()
+
+
+# add another way to do bins
+attData_noNan$trialBins_new = NA
+attData_noNan$trialBins_new[attData_noNan$attentionRunNum <= 7] = 1
+attData_noNan$trialBins_new[attData_noNan$attentionRunNum > 7] = 2
+attData_noNan$trialBins_new[attData_noNan$attentionRunNum >12] = 3
+
+# calculate CV in bins for rewarded and nonrewarded
+rewoverBins_new = attData_noNan %>% group_by(subject,blockNum,rew,trialBins_new) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend), sdRT = sd(rt_detrend)) %>% filter(!is.na(rew),!is.na(cv)) %>% group_by(subject,rew, trialBins_new) %>% dplyr::summarise(avgCV = mean(cv,na.rm = TRUE), sdRT = mean(sdRT))
+rewoverBins_new_summary = summarySEwithin(data.frame(rewoverBins_new),measurevar="avgCV", withinvars=c("rew", "trialBins_new"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+rewoverBins_new_across = rewoverBins_new %>% group_by(rew,trialBins_new) %>% dplyr::summarise(avgCV = mean(avgCV, na.rm = TRUE))
+ggplot(rewoverBins_new_summary, aes(x = trialBins_new, y = avgCV, color = rew))+geom_point()+geom_errorbar(aes(ymin = avgCV-se, ymax = avgCV+se))
+
+rewoverBins_new_sdrt_summary = summarySEwithin(data.frame(rewoverBins_new),measurevar="sdRT", withinvars=c("rew", "trialBins_new"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(rewoverBins_new_sdrt_summary, aes(x = trialBins_new, y = sdRT, color = rew))+geom_point()+geom_errorbar(aes(ymin = sdRT-se, ymax = sdRT+se))
+
+# calculate CV in bins for rewarded and nonrewarded
+rewoverBins_new_noblocknum = attData_noNan %>% group_by(subject,rew,trialBins_new) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend)) %>% filter(!is.na(rew),!is.na(cv))
+
+rewoverBins_new_noblocknum_summary = summarySEwithin(rewoverBins_new_noblocknum,measurevar="cv", withinvars=c("rew", "trialBins_new"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+
+ggplot(rewoverBins_new_noblocknum_summary, aes(x = trialBins_new, y = cv, color = rew))+geom_point()+geom_errorbar(aes(ymin = cv-se, ymax = cv+se))
+
+# add another way to do bins
+attData_noNan$trialBins_two = NA
+attData_noNan$trialBins_two[attData_noNan$attentionRunNum <= 10] = 1
+attData_noNan$trialBins_two[attData_noNan$attentionRunNum > 10] = 2
+
+# calculate CV in bins for rewarded and nonrewarded
+rewoverBins_two = attData_noNan %>% group_by(subject,blockNum,rew,trialBins_two) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend)) %>% filter(!is.na(rew), !is.na(cv)) %>% group_by(subject,rew, trialBins_two) %>% dplyr::summarise(avgCV = mean(cv))
+rewoverBins_two_summary = summarySEwithin(rewoverBins_two,measurevar="avgCV", withinvars=c("rew", "trialBins_two"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+rewoverBins_two_across = rewoverBins_two %>% group_by(rew,trialBins_two) %>% dplyr::summarise(avgCV = mean(avgCV, na.rm = TRUE))
+
+ggplot(rewoverBins_two_summary, aes(x = trialBins_two, y = avgCV, color = rew))+geom_point()+geom_errorbar(aes(ymin = avgCV-ci,ymax = avgCV+ci))
+
+```
+# SARL: CV main analysis
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+# sanity check on detrended rts
+cvComp = attData_noNan %>% filter(!is.na(rew)) %>% group_by(subject,rew) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend), sdRT = sd(rt_detrend), avgRT = mean(rt_detrend))
+ggplot(cvComp, aes(x = rew, y = cv))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+
+cvComp_summary = summarySEwithin(cvComp,measurevar="cv", withinvars=c("rew"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(cvComp_summary, aes(x = rew, y = cv))+geom_point()+geom_errorbar(aes(ymin= cv-se, ymax = cv+se))
+
+cvComp_rt_summary = summarySEwithin(cvComp,measurevar="sdRT", withinvars=c("rew"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(cvComp_rt_summary, aes(x = rew, y = sdRT))+geom_point()+geom_errorbar(aes(ymin= sdRT-se, ymax = sdRT+se))
+
+```
+# SARL: Add columns excluding the first trial of each block
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+# start with the rlData_SARL 
+rlData_SARL$meanRT_freq_noone = NA
+rlData_SARL$sdRT_freq_noone = NA
+rlData_SARL$accuracy_infreq_noone = NA
+rlData_SARL$threeFreq_noone = NA
+rlData_SARL$accuracy_infreq_prev_noone = NA
+rlData_SARL$coefVar_noone = NA
+rlData_SARL$coefVar_prev_noone = NA
+
+for(ai in 1:N_SARL){
+  for(bi in 2:nanMax(testData_SARL$rlNum)){
+    idxRL = which(testData_SARL$subject == subjNums_SARL[ai]& testData_SARL$blockNum == bi & testData_SARL$trialType == 'rl' & testData_SARL$attentionRunNum != 1)
+    idxRel_freq = which(testData_SARL$subject == subjNums_SARL[ai]& testData_SARL$blockNum == bi & testData_SARL$trialType == 'freq'& testData_SARL$attentionRunNum != 1)
+    idxRel_infreq = which(testData_SARL$subject == subjNums_SARL[ai]& testData_SARL$blockNum == bi & testData_SARL$trialType == 'infreq'& testData_SARL$attentionRunNum != 1)
+    idxPrev_freq = which(testData_SARL$subject == subjNums_SARL[ai]& testData_SARL$blockNum == (bi-1) & testData_SARL$trialType == 'freq'& testData_SARL$attentionRunNum != 1)
+    idxPrev_infreq = which(testData_SARL$subject == subjNums_SARL[ai]& testData_SARL$blockNum == (bi-1) & testData_SARL$trialType == 'infreq'& testData_SARL$attentionRunNum != 1)
+
+    idxPrevThree = tail(idxPrev_freq,3)
+    
+    avgRT = mean(testData_SARL$rt[idxRel_freq],na.rm = TRUE)
+    sdRT = sd(testData_SARL$rt[idxRel_freq],na.rm = TRUE)
+    attAccuracy = mean(testData_SARL$corr[idxRel_infreq],na.rm = TRUE)
+    threeRT = mean(testData_SARL$rt[idxPrevThree],na.rm = TRUE)
+    attAccuracy_prev = mean(testData_SARL$corr[idxPrev_infreq],na.rm = TRUE)
+    CV = sdRT/avgRT
+    avgRT_prev = mean(testData_SARL$rt[idxPrev_freq],na.rm = TRUE)
+    sdRT_prev = sd(testData_SARL$rt[idxPrev_freq],na.rm = TRUE)
+    CV_prev = sdRT_prev/avgRT_prev
+
+    rlData_SARL$meanRT_freq_noone[which(rlData_SARL$blockNum == bi-1 & rlData_SARL$subject == subjNums_SARL[ai])] = avgRT
+    rlData_SARL$sdRT_freq_noone[which(rlData_SARL$blockNum == bi-1 & rlData_SARL$subject == subjNums_SARL[ai])] = sdRT
+    rlData_SARL$accuracy_infreq_noone[which(rlData_SARL$blockNum == bi-1 & rlData_SARL$subject == subjNums_SARL[ai])] = attAccuracy
+    rlData_SARL$threeFreq_noone[which(rlData_SARL$blockNum == bi-1 & rlData_SARL$subject == subjNums_SARL[ai])] = threeRT
+    rlData_SARL$accuracy_infreq_prev_noone[which(rlData_SARL$blockNum == bi-1 & rlData_SARL$subject == subjNums_SARL[ai])] = attAccuracy_prev
+    rlData_SARL$coefVar_noone[which(rlData_SARL$blockNum == bi-1 & rlData_SARL$subject == subjNums_SARL[ai])] = CV
+    rlData_SARL$coefVar_prev_noone[which(rlData_SARL$blockNum == bi-1 & rlData_SARL$subject == subjNums_SARL[ai])] = CV_prev
+    
+  }
+}
+
+rlData_SARL$avgRT_detrend_noone = NA
+rlData_SARL$coefVar_detrend_noone = NA
+rlData_SARL$accuracy_infreq_detrend_noone = NA
+rlData_SARL$coefVar_prev_detrend_noone = NA
+rlData_SARL$accuracy_infreq_prev_detrend_noone = NA
+for(si in 1:N_SARL){
+  subData = rlData_SARL %>% filter(subject == subjNums_SARL[si], !is.na(coefVar),!is.na(accuracy_infreq)) # get subject data
+  sub_avgRT = c(t(subData$meanRT_freq_noone)) # get rt column and transpose
+  sub_coefVar = c(t(subData$coefVar_noone)) # get cv column and transpose
+  sub_accuracy_infreq = c(t(subData$accuracy_infreq_noone))# get accuracy column and transpose
+  sub_coefVar_prev = c(t(subData$coefVar_prev_noone)) # get cv column and transpose
+  sub_accuracy_infreq_prev = c(t(subData$accuracy_infreq_prev_noone))# get accuracy column and transpose
+  
+  sub_avgRT_detrend = detrend(sub_avgRT)
+  sub_coefVar_detrend = detrend(sub_coefVar)
+  sub_accuracy_infreq_detrend = detrend(sub_accuracy_infreq)
+  sub_coefVar_prev_detrend = detrend(sub_coefVar_prev )
+  sub_accuracy_infreq_prev_detrend = detrend(sub_accuracy_infreq_prev )
+  
+  rlData_SARL$avgRT_detrend_noone[rlData_SARL$subject == subjNums_SARL[si]] = sub_avgRT_detrend
+  rlData_SARL$coefVar_detrend_noone[rlData_SARL$subject == subjNums_SARL[si]] = sub_coefVar_detrend
+  rlData_SARL$accuracy_infreq_detrend_noone[rlData_SARL$subject == subjNums_SARL[si]] = sub_accuracy_infreq_detrend
+  rlData_SARL$coefVar_prev_detrend_noone[rlData_SARL$subject == subjNums_SARL[si]] = sub_coefVar_prev_detrend
+  rlData_SARL$accuracy_infreq_prev_detrend_noone[rlData_SARL$subject == subjNums_SARL[si]] = sub_accuracy_infreq_prev_detrend  
+}
+
+
+```
+# SA performance (cv_detrend) by rewardSign
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+#accuReward = rlData_noNan %>% group_by(subject,rewardSign) %>% dplyr::summarize(avgAcc = mean(accuracy_infreq,na.rm = TRUE)) #*** update when you do rl code
+cvrewardsign_detrend = rlData_SARL %>% group_by(subject,rewardSign) %>% dplyr::summarize(cv_detrend = mean(coefVar_detrend,na.rm = TRUE),cv_detrend_noone = mean(coefVar_detrend_noone,na.rm = TRUE))
+summaryStats_cvrewardsign_detrend_noone = Rmisc::summarySEwithin(cvrewardsign_detrend,measurevar="cv_detrend_noone", withinvars=c("rewardSign"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+summaryStats_cvrewardsign_detrend = Rmisc::summarySEwithin(cvrewardsign_detrend,measurevar="cv_detrend", withinvars=c("rewardSign"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+
+ggplot(summaryStats_cvrewardsign_detrend_noone, aes(x = rewardSign, y = cv_detrend_noone))+
+  geom_point(size = 3)+
+  scale_x_discrete(name = 'reward sign')+
+  labs(y = 'cv_detrend_noone',x = 'reward sign')+
+  theme(axis.title.x = element_text(size = 22, face = 'bold'), 
+        axis.title.y = element_text(size = 22, face = 'bold'),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20), 
+        axis.line = element_line(colour = 'black', size = 2),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+
+  geom_errorbar(aes(ymin=cv_detrend_noone-se, ymax=cv_detrend_noone+se),size = 1.5, width=0)
+#ggsave('rewardsigncv_detrend.eps')
+
+t.test(cvrewardsign_detrend$cv_detrend_noone[cvrewardsign_detrend$rewardSign == 'pos'],cvrewardsign_detrend$cv_detrend_noone[cvrewardsign_detrend$rewardSign == 'neg'],paired = TRUE)
+
+ggplot(summaryStats_cvrewardsign_detrend, aes(x = rewardSign, y = cv_detrend))+
+  geom_point(size = 3)+
+  scale_x_discrete(name = 'reward sign')+
+  labs(y = 'cv_detrend',x = 'reward sign')+
+  theme(axis.title.x = element_text(size = 22, face = 'bold'), 
+        axis.title.y = element_text(size = 22, face = 'bold'),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20), 
+        axis.line = element_line(colour = 'black', size = 2),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        panel.border = element_rect(fill = NA, colour = "white"))+
+  geom_errorbar(aes(ymin=cv_detrend-se, ymax=cv_detrend+se),size = 1.5, width=0)
+#ggsave('rewardsigncv_detrend.eps')
+
+t.test(cvrewardsign_detrend$cv_detrend[cvrewardsign_detrend$rewardSign == 'pos'],cvrewardsign_detrend$cv_detrend[cvrewardsign_detrend$rewardSign == 'neg'],paired = TRUE)
+```
+\newpage
+
+# pSARL: detrend RTs then look at effect within block
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+# Add in reward information
+testData$rew = NA
+for(ai in 1:N){
+  subj = subjNums[ai]
+  for(bi in 1:(nRLTrials-1)){
+    if(is.na(testData$points[which(testData$subject == subj & testData$rlNum == bi)])) {
+      testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'noresp'
+    }else if(testData$points[which(testData$subject == subj & testData$rlNum == bi)]<=0){
+       testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'unrew'
+    }else if(testData$points[which(testData$subject == subj & testData$rlNum == bi)]> 0){
+      testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'rew'
+    }
+  }
+}
+testData$rewardSign = NA
+testData$rewardSign[testData$points > 0] = 'pos'
+testData$rewardSign[testData$points <= 0] = 'neg'
+
+attData_pSARL = testData %>% filter(trialType %in% c('freq','infreq'))
+trialCounts = testData %>% group_by(subject, blockNum) %>% dplyr::summarise(counts = n())
+
+attData_pSARL$attentionRunNum_fixed = NA
+
+for(si in subjNums){
+  for(bi in 1:75){
+    attData_pSARL$attentionRunNum_fixed[attData_pSARL$subject == si & attData_pSARL$blockNum == bi] = seq(1,trialCounts$counts[trialCounts$subject == si & trialCounts$blockNum == bi][1],1)
+  }
+}
+
+
+attData_noNan_pSARL = attData_pSARL %>% filter(!is.na(rt), trialType %in% c('freq','infreq'))
+
+attData_noNan_pSARL$rt_detrend = NA
+for(si in 1:N){
+  subData = attData_noNan_pSARL %>% filter(subject == subjNums[si]) # get subject data
+  sub_rt = c(t(subData$rt)) # get rt column and transpose
+
+  sub_rt_detrend = detrend(sub_rt)
+  
+  attData_noNan_pSARL$rt_detrend[attData_noNan_pSARL$subject == subjNums[si]] = sub_rt_detrend
+
+}
+# just do a few subs bc this is huge
+attData_noNan_pSARL_subs = attData_noNan_pSARL %>% filter(subject %in% c(subjNums[1:5]))
+ggplot(attData_noNan_pSARL_subs, aes(x = trialNum, y = rt))+geom_point()+facet_wrap(~subject)
+attData_noNan_pSARL_subs = attData_noNan_pSARL %>% filter(subject %in% c(subjNums[1:5]))
+ggplot(attData_noNan_pSARL_subs, aes(x = trialNum, y = rt_detrend))+geom_point()+facet_wrap(~subject)
+
+```
+# SARL: Add columns excluding the first trial of each block
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+# start with the rlData 
+rlData$meanRT_freq_noone = NA
+rlData$sdRT_freq_noone = NA
+rlData$accuracy_infreq_noone = NA
+rlData$threeFreq_noone = NA
+rlData$accuracy_infreq_prev_noone = NA
+rlData$coefVar_noone = NA
+rlData$coefVar_prev_noone = NA
+
+for(ai in 1:N){
+  for(bi in 2:nanMax(testData$rlNum)){
+    idxRL = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'rl' & testData$attentionRunNum != 1)
+    idxRel_freq = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'freq'& testData$attentionRunNum != 1)
+    idxRel_infreq = which(testData$subj/ect == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'infreq'& testData$attentionRunNum != 1)
+    idxPrev_freq = which(testData$subject == subjNums[ai]& testData$blockNum == (bi-1) & testData$trialType == 'freq'& testData$attentionRunNum != 1)
+    idxPrev_infreq = which(testData$subject == subjNums[ai]& testData$blockNum == (bi-1) & testData$trialType == 'infreq'& testData$attentionRunNum != 1)
+
+    idxPrevThree = tail(idxPrev_freq,3)
+    
+    avgRT = mean(testData$rt[idxRel_freq],na.rm = TRUE)
+    sdRT = sd(testData$rt[idxRel_freq],na.rm = TRUE)
+    attAccuracy = mean(testData$corr[idxRel_infreq],na.rm = TRUE)
+    threeRT = mean(testData$rt[idxPrevThree],na.rm = TRUE)
+    attAccuracy_prev = mean(testData$corr[idxPrev_infreq],na.rm = TRUE)
+    CV = sdRT/avgRT
+    avgRT_prev = mean(testData$rt[idxPrev_freq],na.rm = TRUE)
+    sdRT_prev = sd(testData$rt[idxPrev_freq],na.rm = TRUE)
+    CV_prev = sdRT_prev/avgRT_prev
+
+    rlData$meanRT_freq_noone[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = avgRT
+    rlData$sdRT_freq_noone[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = sdRT
+    rlData$accuracy_infreq_noone[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = attAccuracy
+    rlData$threeFreq_noone[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = threeRT
+    rlData$accuracy_infreq_prev_noone[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = attAccuracy_prev
+    rlData$coefVar_noone[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = CV
+    rlData$coefVar_prev_noone[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = CV_prev
+    
+  }
+}
+
+rlData$avgRT_detrend_noone = NA
+rlData$coefVar_detrend_noone = NA
+rlData$accuracy_infreq_detrend_noone = NA
+rlData$coefVar_prev_detrend_noone = NA
+rlData$accuracy_infreq_prev_detrend_noone = NA
+for(si in 1:N_SARL){
+  subData = rlData %>% filter(subject == subjNums[si], !is.na(coefVar),!is.na(accuracy_infreq)) # get subject data
+  sub_avgRT = c(t(subData$meanRT_freq_noone)) # get rt column and transpose
+  sub_coefVar = c(t(subData$coefVar_noone)) # get cv column and transpose
+  sub_accuracy_infreq = c(t(subData$accuracy_infreq_noone))# get accuracy column and transpose
+  sub_coefVar_prev = c(t(subData$coefVar_prev_noone)) # get cv column and transpose
+  sub_accuracy_infreq_prev = c(t(subData$accuracy_infreq_prev_noone))# get accuracy column and transpose
+  
+  sub_avgRT_detrend = detrend(sub_avgRT)
+  sub_coefVar_detrend = detrend(sub_coefVar)
+  sub_accuracy_infreq_detrend = detrend(sub_accuracy_infreq)
+  sub_coefVar_prev_detrend = detrend(sub_coefVar_prev )
+  sub_accuracy_infreq_prev_detrend = detrend(sub_accuracy_infreq_prev )
+  
+  rlData$avgRT_detrend_noone[rlData$subject == subjNums[si]] = sub_avgRT_detrend
+  rlData$coefVar_detrend_noone[rlData$subject == subjNums[si]] = sub_coefVar_detrend
+  rlData$accuracy_infreq_detrend_noone[rlData$subject == subjNums[si]] = sub_accuracy_infreq_detrend
+  rlData$coefVar_prev_detrend_noone[rlData$subject == subjNums[si]] = sub_coefVar_prev_detrend
+  rlData$accuracy_infreq_prev_detrend_noone[rlData$subject == subjNums[si]] = sub_accuracy_infreq_prev_detrend  
+}
+
+
+```
+
+# SARL: CV in trial bins
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+# add another way to do bins
+attData_noNan_pSARL$trialBins_new = NA
+attData_noNan_pSARL$trialBins_new[attData_noNan_pSARL$attentionRunNum_fixed <= 7] = 1
+attData_noNan_pSARL$trialBins_new[attData_noNan_pSARL$attentionRunNum_fixed > 7] = 2
+attData_noNan_pSARL$trialBins_new[attData_noNan_pSARL$attentionRunNum_fixed >12] = 3
+
+# calculate CV in bins for rewarded and nonrewarded
+rewoverBins_new_pSARL = attData_noNan_pSARL %>% group_by(subject,blockNum,rew,trialBins_new) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend), sdRT = sd(rt_detrend)) %>% filter(!is.na(rew),!is.na(cv)) %>% group_by(subject,rew, trialBins_new) %>% dplyr::summarise(avgCV = mean(cv,na.rm = TRUE), sdRT = mean(sdRT))
+rewoverBins_new_pSARL_summary = summarySEwithin(data.frame(rewoverBins_new_pSARL),measurevar="avgCV", withinvars=c("rew", "trialBins_new"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(rewoverBins_new_pSARL_summary, aes(x = trialBins_new, y = avgCV, color = rew))+geom_point()+geom_errorbar(aes(ymin = avgCV-se, ymax = avgCV+se))
+
+rewoverBins_new_sdrt_pSARL_summary = summarySEwithin(data.frame(rewoverBins_new_pSARL),measurevar="sdRT", withinvars=c("rew", "trialBins_new"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(rewoverBins_new_sdrt_pSARL_summary, aes(x = trialBins_new, y = sdRT, color = rew))+geom_point()+geom_errorbar(aes(ymin = sdRT-se, ymax = sdRT+se))
+
+# calculate CV in bins for rewarded and nonrewarded
+rewoverBins_new_noblocknum = attData_noNan_pSARL %>% group_by(subject,rew,trialBins_new) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend)) %>% filter(!is.na(rew),!is.na(cv))
+
+rewoverBins_new_noblocknum_summary = summarySEwithin(rewoverBins_new_noblocknum,measurevar="cv", withinvars=c("rew", "trialBins_new"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+
+ggplot(rewoverBins_new_noblocknum_summary, aes(x = trialBins_new, y = cv, color = rew))+geom_point()+geom_errorbar(aes(ymin = cv-se, ymax = cv+se))
+
+# add another way to do bins
+attData_noNan_pSARL$trialBins_two = NA
+attData_noNan_pSARL$trialBins_two[attData_noNan_pSARL$attentionRunNum <= 10] = 1
+attData_noNan_pSARL$trialBins_two[attData_noNan_pSARL$attentionRunNum > 10] = 2
+
+# calculate CV in bins for rewarded and nonrewarded
+rewoverBins_two = attData_noNan_pSARL %>% group_by(subject,blockNum,rew,trialBins_two) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend)) %>% filter(!is.na(rew), !is.na(cv)) %>% group_by(subject,rew, trialBins_two) %>% dplyr::summarise(avgCV = mean(cv))
+rewoverBins_two_summary = summarySEwithin(rewoverBins_two,measurevar="avgCV", withinvars=c("rew", "trialBins_two"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+rewoverBins_two_across = rewoverBins_two %>% group_by(rew,trialBins_two) %>% dplyr::summarise(avgCV = mean(avgCV, na.rm = TRUE))
+
+ggplot(rewoverBins_two_summary, aes(x = trialBins_two, y = avgCV, color = rew))+geom_point()+geom_errorbar(aes(ymin = avgCV-ci,ymax = avgCV+ci))
+
+```
+
+
+# SARL: CV main analysis
+```{r, echo=F, message=F, warning=F, error=T, fig.width=5, fig.height=5, fig.align='center'}
+# sanity check on detrended rts
+cvComp_pSARL = attData_noNan_pSARL %>% filter(!is.na(rew)) %>% group_by(subject,rew) %>% dplyr::summarise(cv = sd(rt_detrend)/mean(rt_detrend), sdRT = sd(rt_detrend), avgRT = mean(rt_detrend))
+ggplot(cvComp_pSARL, aes(x = rew, y = cv))+geom_bar(stat = 'summary', fun.y = 'mean')+geom_point()
+
+cvComp_pSARL_summary = summarySEwithin(cvComp_pSARL,measurevar="cv", withinvars=c("rew"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(cvComp_pSARL_summary, aes(x = rew, y = cv))+geom_point()+geom_errorbar(aes(ymin= cv-se, ymax = cv+se))
+
+cvComp_pSARL_rt_summary = summarySEwithin(cvComp_pSARL,measurevar="sdRT", withinvars=c("rew"),idvar="subject", na.rm=FALSE, conf.interval=.95)
+ggplot(cvComp_pSARL_rt_summary, aes(x = rew, y = sdRT))+geom_point()+geom_errorbar(aes(ymin= sdRT-se, ymax = sdRT+se))
+
+```
+
+\newpage
+# Descriptive statistics for revision
+```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=5, fig.align='center'}
+library(psych)
+library(moments)
+dvStats = rlData %>% group_by(subject) %>% dplyr::summarise(accu = mean(accu_infreq,na.rm = TRUE),accu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), cv = mean(CV,na.rm = TRUE), cv_detrend = mean(coefVar_detrend,na.rm = TRUE), reward = sum(points,na.rm = TRUE))
+
+mean(dvStats$reward,na.rm=TRUE)
+mean(dvStats$accu,na.rm=TRUE)
+mean(dvStats$cv,na.rm=TRUE)
+mean(dvStats$accu_detrend,na.rm=TRUE)
+mean(dvStats$cv_detrend,na.rm=TRUE)
+
+sd(dvStats$reward,na.rm=TRUE)
+sd(dvStats$accu,na.rm=TRUE)
+sd(dvStats$cv,na.rm=TRUE)
+sd(dvStats$accu_detrend,na.rm=TRUE)
+sd(dvStats$cv_detrend,na.rm=TRUE)
+
+skewness(dvStats$reward,na.rm=TRUE)
+skewness(dvStats$accu,na.rm=TRUE)
+skewness(dvStats$cv,na.rm=TRUE)
+skewness(dvStats$accu_detrend,na.rm=TRUE)
+skewness(dvStats$cv_detrend,na.rm=TRUE)
+
+kurtosis(dvStats$reward,na.rm=TRUE)
+kurtosis(dvStats$accu,na.rm=TRUE)
+kurtosis(dvStats$cv,na.rm=TRUE)
+kurtosis(dvStats$accu_detrend,na.rm=TRUE)
+kurtosis(dvStats$cv_detrend,na.rm=TRUE)
+
+rlData$evenBlock = NA
+rlData$evenBlock[(rlData$blockNum %% 2) == 0] = 'even'
+rlData$evenBlock[(rlData$blockNum %% 2) > 0] = 'odd'
+
+relCorr = rlData %>% group_by(subject,evenBlock) %>% dplyr::summarise(accu = mean(accu_infreq,na.rm = TRUE),accu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), cv = mean(CV,na.rm = TRUE), cv_detrend = mean(coefVar_detrend,na.rm = TRUE), reward = sum(points,na.rm= TRUE))
+
+cor.test(relCorr$reward[relCorr$evenBlock == 'even'],relCorr$reward[relCorr$evenBlock == 'odd'], method = 'spearman')
+cor.test(relCorr$accu[relCorr$evenBlock == 'even'],relCorr$accu[relCorr$evenBlock == 'odd'], method = 'spearman')
+cor.test(relCorr$cv[relCorr$evenBlock == 'even'],relCorr$cv[relCorr$evenBlock == 'odd'], method = 'spearman')
+cor.test(relCorr$accu_detrend[relCorr$evenBlock == 'even'],relCorr$accu_detrend[relCorr$evenBlock == 'odd'], method = 'spearman')
+cor.test(relCorr$cv_detrend[relCorr$evenBlock == 'even'],relCorr$cv_detrend[relCorr$evenBlock == 'odd'], method = 'spearman')
+relCorr_wide = relCorr %>% pivot_wider(names_from = evenBlock, values_from = c(reward,accu, cv,accu_detrend,cv_detrend))
+ggplot(relCorr_wide, aes(x = accu_detrend_even, y = accu_detrend_odd)) +geom_point()
+ggplot(relCorr_wide, aes(x = cv_detrend_even, y = cv_detrend_odd)) +geom_point()
+
+```
+
