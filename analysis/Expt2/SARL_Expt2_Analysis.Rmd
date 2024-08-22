@@ -16,10 +16,8 @@ Main analyses for Experiment 2 in "Reward enhances sustained attention on short 
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
 # set up workspace
 rm(list=ls(all=TRUE))
-# setwd("~/Box/ACTlab_projects/JT_SARL/3 Data/subjData_SONA_freq_v3")
-# datadir = "~/Box/ACTlab_projects/JT_SARL/3 Data/subjData_SONA_freq_v3"
-setwd("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25")
-datadir = "~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/data"
+setwd("~/Documents/Github/SARL_2024/analysis/Expt2")
+datadir = "~/Documents/Github/SARL_2024/analysis/Expt2/data"
 
 # load libraries
 library(ggplot2)
@@ -44,7 +42,7 @@ se <- function(x) sqrt(var(x)/length(x))
 nanMax = function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
 nanMin = function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
 # read in data
-flag = 2 #1 = compile all the data, 2 = read in the already ready files
+flag = 1 #1 = compile all the data, 2 = read in the already ready files
 
 if(flag == 1){
   file_paths = fs::dir_ls(datadir)
@@ -53,16 +51,16 @@ if(flag == 1){
     newSubjData = read_csv(file = file_paths[[i]])
     compiledData = rbind(compiledData, newSubjData)
   }
-
+  
   # clean up data
   compiledData$rt = as.numeric(compiledData$rt)
   compiledData$time_elapsed = as.numeric(compiledData$time_elapsed)
   compiledData$key_press = as.numeric(compiledData$key_press)
   compiledData$stim = as.numeric(compiledData$stim)
   compiledData$corrresp = as.numeric(compiledData$corrresp)
-
-
-
+  
+  
+  
   # sort data into prac and test 
   pracData = filter(compiledData, phase == "prac")
   testData = filter(compiledData, phase == "test")
@@ -71,149 +69,149 @@ if(flag == 1){
   testData$prevReward = NA
   testData = testData %>% filter(trialType %in% c('freq','infreq','rl'))
   # get some variables
-prolificNums = unique(testData$subject)
-subjNums_all = unique(testData$subject)
-N_all = length(prolificNums)
-nRLTrials = 76
-chancePerformance = .5 #maybe add the actual formula at some point 
-
+  prolificNums = unique(testData$subject)
+  subjNums_all = unique(testData$subject)
+  N_all = length(prolificNums)
+  nRLTrials = 76
+  chancePerformance = .5 #maybe add the actual formula at some point 
+  
   # add other info
-    # rL corr or not
-counter = 1
+  # rL corr or not
+  counter = 1
   for (ai in 1:N_all){
     for(bi in 1:nanMax(testData$rlNum)){
       idx = which(testData$rlNum == bi & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       if(!is_empty(idx)){
-      if(is.na(testData$key_press[idx])){
-        testData$rlCorr[idx] = NA
-      }else if(min(c(testData$bandOneVal[idx], testData$bandTwoVal[idx])) == testData$reward[idx]){
-       testData$rlCorr[idx] = 0
-      }else if(max(c(testData$bandOneVal[idx], testData$bandTwoVal[idx])) == testData$reward[idx]){
-       testData$rlCorr[idx] = 1
-       
-     }
-      testData$rlType[idx-1] = "preRL"
-      testData$rlType[idx] = 'rl'
+        if(is.na(testData$key_press[idx])){
+          testData$rlCorr[idx] = NA
+        }else if(min(c(testData$bandOneVal[idx], testData$bandTwoVal[idx])) == testData$reward[idx]){
+          testData$rlCorr[idx] = 0
+        }else if(max(c(testData$bandOneVal[idx], testData$bandTwoVal[idx])) == testData$reward[idx]){
+          testData$rlCorr[idx] = 1
+          
+        }
+        testData$rlType[idx-1] = "preRL"
+        testData$rlType[idx] = 'rl'
       }}
     
     for(ci in 2:nanMax(testData$rlNum)){
       idxCurr = which(testData$rlNum == ci & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       idxPrev = which(testData$rlNum == (ci-1) & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       if(!is_empty(idxCurr) & !is_empty(idxPrev)){
-      if(idxCurr ==2){
-        testData$switch[1] = NA 
+        if(idxCurr ==2){
+          testData$switch[1] = NA 
         }else if(testData$shapeChosen[idxCurr] =='too slow'){
-        testData$switch[idxCurr] = NA
-      }else if(testData$shapeChosen[idxCurr]==testData$shapeChosen[idxPrev]){
-        testData$switch[idxCurr] = 0
-      }else{
-        testData$switch[idxCurr] = 1
-        if(is.na(testData$key_press[idxPrev])){
           testData$switch[idxCurr] = NA
-        }}
+        }else if(testData$shapeChosen[idxCurr]==testData$shapeChosen[idxPrev]){
+          testData$switch[idxCurr] = 0
+        }else{
+          testData$switch[idxCurr] = 1
+          if(is.na(testData$key_press[idxPrev])){
+            testData$switch[idxCurr] = NA
+          }}
       }
-     if(ci < nanMax(testData$rlNum)){
-      idxSubjBlock = which(testData$subject == subjNums_all[ai] & testData$blockNum == ci)
-      testData$prevReward[idxSubjBlock] = testData$reward[which(testData$subject == subjNums_all[ai] & testData$rlNum == ci-1)]
-     }
+      if(ci < nanMax(testData$rlNum)){
+        idxSubjBlock = which(testData$subject == subjNums_all[ai] & testData$blockNum == ci)
+        testData$prevReward[idxSubjBlock] = testData$reward[which(testData$subject == subjNums_all[ai] & testData$rlNum == ci-1)]
+      }
       
     }
     
   }
-
-# Add in reward information
-testData$rew = NA
-for(ai in 1:N_all){
-  subj = subjNums_all[ai]
-  for(bi in 1:(nRLTrials-1)){
-    if(is.na(testData$reward[which(testData$subject == subj & testData$rlNum == bi)])) {
-      testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'noresp'
-    }else if(testData$reward[which(testData$subject == subj & testData$rlNum == bi)]<=0){
-       testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'unrew'
-    }else if(testData$reward[which(testData$subject == subj & testData$rlNum == bi)]> 0){
-      testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'rew'
+  
+  # Add in reward information
+  testData$rew = NA
+  for(ai in 1:N_all){
+    subj = subjNums_all[ai]
+    for(bi in 1:(nRLTrials-1)){
+      if(is.na(testData$reward[which(testData$subject == subj & testData$rlNum == bi)])) {
+        testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'noresp'
+      }else if(testData$reward[which(testData$subject == subj & testData$rlNum == bi)]<=0){
+        testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'unrew'
+      }else if(testData$reward[which(testData$subject == subj & testData$rlNum == bi)]> 0){
+        testData$rew[testData$subject == subj & testData$blockNum==(bi+1)] = 'rew'
+      }
     }
   }
-}
-testData$rewardSign = NA
-testData$rewardSign[testData$reward > 0] = 'pos'
-testData$rewardSign[testData$reward <= 0] = 'neg'
-# load in RPEs for 2 alpha model generated by matlab script
- RPEs = read.csv('~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/RPE1a_prolificRep_6.8.23.csv')
- RPEs_two = read.csv('~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/RPE2a_prolificRep_6.8.23.csv')
- modelInfo = read.csv('~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/modelingInfo_6.8.23.csv')
-
-# # add RPE columns
- testData$RPE_1alpha = NA
- testData$RPE_2alpha = NA
-
-# # add columns for other modeling info
- testData$alphaOne = NA
- testData$betaOne = NA
- testData$aicOne = NA
- testData$bicOne = NA
-
- testData$alphaPos = NA
- testData$alphaNeg = NA
- testData$betaTwo = NA
- testData$aicTwo = NA
- testData$bicTwo = NA
-
- modelSubjs = colnames(RPEs)# just do this for the included subjects
- N_model = length(modelSubjs)
- # add RPEs to the main spreadsheet
- for(ai in 1:N_model){
-   subj = modelSubjs[ai]
-
-  testData$alphaOne[testData$subject == subj] = modelInfo[[subj]][1]
- testData$betaOne[testData$subject == subj] = modelInfo[[subj]][2]
- testData$aicOne[testData$subject == subj] = modelInfo[[subj]][3]
- testData$bicOne[testData$subject == subj] = modelInfo[[subj]][4]
-
- testData$alphaPos[testData$subject == subj] = modelInfo[[subj]][5]
- testData$alphaNeg[testData$subject == subj] = modelInfo[[subj]][6]
-testData$betaTwo[testData$subject == subj] = modelInfo[[subj]][7]
- testData$aicTwo[testData$subject == subj] = modelInfo[[subj]][8]
- testData$bicTwo[testData$subject == subj] = modelInfo[[subj]][9]
-
-   for(bi in 2:nanMax(testData$rlNum)){
-
-    idxSubjBlock = which(testData$subject == subj & testData$blockNum == bi)
-   testData$RPE_1alpha[idxSubjBlock] = RPEs[[subj]][bi-1]
-     testData$RPE_1alpha[nanMin(idxSubjBlock)-1] = RPEs[[subj]][bi-1]
-
-     testData$RPE_2alpha[idxSubjBlock] = RPEs_two[[subj]][bi-1]
-     testData$RPE_2alpha[nanMin(idxSubjBlock)-1] = RPEs_two[[subj]][bi-1]
-   }
- }
-
-testData_all = testData
-demoInfo = read.csv('~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/SARL_prolificRep_demoInfo.csv')
-testData$age = NA
-testData$sex = NA
-prolificIDs = unique(testData$prolificID)
-for(si in prolificIDs){
-  subjAge = demoInfo$Age[demoInfo$Participant.id == si]
-  subjSex = demoInfo$Sex[demoInfo$Participant.id == si]
+  testData$rewardSign = NA
+  testData$rewardSign[testData$reward > 0] = 'pos'
+  testData$rewardSign[testData$reward <= 0] = 'neg'
+  # load in RPEs for 2 alpha model generated by matlab script
+  RPEs = read.csv('~/Documents/Github/SARL_2024/analysis/Expt2/SARL_Expt2_RPE1a.csv')
+  RPEs_two = read.csv('~/Documents/Github/SARL_2024/analysis/Expt2/SARL_Expt2_RPE2a.csv')
+  modelInfo = read.csv('~/Documents/Github/SARL_2024/analysis/Expt2/SARL_Expt2_modelingInfo.csv')
   
-  testData$age[testData$prolificID == si] = subjAge
-  testData$sex[testData$prolificID == si] = subjSex
-}
-
-testData$bandOneSign = NA
-testData$bandOneSign[testData$bandOneVal > 0] = 'pos'
-testData$bandOneSign[testData$bandOneVal <= 0] = 'neg'
-testData$bandTwoSign = NA
-testData$bandTwoSign[testData$bandTwoVal > 0] = 'pos'
-testData$bandTwoSign[testData$bandTwoVal <= 0] = 'neg'
+  # # add RPE columns
+  testData$RPE_1alpha = NA
+  testData$RPE_2alpha = NA
   
-  }else{
-    testData = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/4 Analyses/OrganizedCode/Expt2/SARL_Expt2_rawdata_n146_final.csv")
-    subjNums_all = unique(testData$subject)
-    N_all = length(subjNums_all)
-    nRLTrials = 76
-    chancePerformance =.5
+  # # add columns for other modeling info
+  testData$alphaOne = NA
+  testData$betaOne = NA
+  testData$aicOne = NA
+  testData$bicOne = NA
+  
+  testData$alphaPos = NA
+  testData$alphaNeg = NA
+  testData$betaTwo = NA
+  testData$aicTwo = NA
+  testData$bicTwo = NA
+  
+  modelSubjs = colnames(RPEs)# just do this for the included subjects
+  N_model = length(modelSubjs)
+  # add RPEs to the main spreadsheet
+  for(ai in 1:N_model){
+    subj = modelSubjs[ai]
+    
+    testData$alphaOne[testData$subject == subj] = modelInfo[[subj]][1]
+    testData$betaOne[testData$subject == subj] = modelInfo[[subj]][2]
+    testData$aicOne[testData$subject == subj] = modelInfo[[subj]][3]
+    testData$bicOne[testData$subject == subj] = modelInfo[[subj]][4]
+    
+    testData$alphaPos[testData$subject == subj] = modelInfo[[subj]][5]
+    testData$alphaNeg[testData$subject == subj] = modelInfo[[subj]][6]
+    testData$betaTwo[testData$subject == subj] = modelInfo[[subj]][7]
+    testData$aicTwo[testData$subject == subj] = modelInfo[[subj]][8]
+    testData$bicTwo[testData$subject == subj] = modelInfo[[subj]][9]
+    
+    for(bi in 2:nanMax(testData$rlNum)){
+      
+      idxSubjBlock = which(testData$subject == subj & testData$blockNum == bi)
+      testData$RPE_1alpha[idxSubjBlock] = RPEs[[subj]][bi-1]
+      testData$RPE_1alpha[nanMin(idxSubjBlock)-1] = RPEs[[subj]][bi-1]
+      
+      testData$RPE_2alpha[idxSubjBlock] = RPEs_two[[subj]][bi-1]
+      testData$RPE_2alpha[nanMin(idxSubjBlock)-1] = RPEs_two[[subj]][bi-1]
+    }
   }
+  
+  testData_all = testData
+  # demoInfo = read.csv('~.csv')
+  # testData$age = NA
+  # testData$sex = NA
+  # prolificIDs = unique(testData$prolificID)
+  # for(si in prolificIDs){
+  #   subjAge = demoInfo$Age[demoInfo$Participant.id == si]
+  #   subjSex = demoInfo$Sex[demoInfo$Participant.id == si]
+  #   
+  #   testData$age[testData$prolificID == si] = subjAge
+  #   testData$sex[testData$prolificID == si] = subjSex
+  # }
+  
+  testData$bandOneSign = NA
+  testData$bandOneSign[testData$bandOneVal > 0] = 'pos'
+  testData$bandOneSign[testData$bandOneVal <= 0] = 'neg'
+  testData$bandTwoSign = NA
+  testData$bandTwoSign[testData$bandTwoVal > 0] = 'pos'
+  testData$bandTwoSign[testData$bandTwoVal <= 0] = 'neg'
+  
+}else{
+  testData = read_csv("~/Documents/Github/SARL_2024/analysis/Expt2/SARL_Expt2_rawdata_n146_final.csv")
+  subjNums_all = unique(testData$subject)
+  N_all = length(subjNums_all)
+  nRLTrials = 76
+  chancePerformance =.5
+}
 
 # Save full data without exclusions just in case
 testData_noExclusions = testData
@@ -266,71 +264,71 @@ sprintf('N subjects AFTER EXCLUSIONS: %d', length(unique(testData$subject)))
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=4, fig.align='center'}
 rlData = testData %>% filter(trialType == "rl") %>% group_by(subject)
 if(flag == 1){# make an array with the values you want for each block (subject, RPE, meanRT on freq, sdRT on freq, accuracy on infreq)
-# start with the rlData 
-rlData$meanRT_freq = NA
-rlData$sdRT_freq = NA
-rlData$accuracy_infreq = NA
-rlData$threeFreq = NA
-rlData$accuracy_infreq_prev = NA
-rlData$coefVar = NA
-rlData$coefVar_prev = NA
-
-for(ai in 1:N){
-  for(bi in 2:max(testData$rlNum,na.rm = TRUE)){
-    idxRL = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'rl')
-    idxRel_freq = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'freq')
-    idxRel_infreq = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'infreq')
-    idxPrev_freq = which(testData$subject == subjNums[ai]& testData$blockNum == (bi-1) & testData$trialType == 'freq')
-    idxPrev_infreq = which(testData$subject == subjNums[ai]& testData$blockNum == (bi-1) & testData$trialType == 'infreq')
-
-    idxPrevThree = tail(idxPrev_freq,3)
-    
-    avgRT = mean(testData$rt[idxRel_freq],na.rm = TRUE)
-    sdRT = sd(testData$rt[idxRel_freq],na.rm = TRUE)
-    attAccuracy = mean(testData$corr[idxRel_infreq],na.rm = TRUE)
-    threeRT = mean(testData$rt[idxPrevThree],na.rm = TRUE)
-    attAccuracy_prev = mean(testData$corr[idxPrev_infreq],na.rm = TRUE)
-    CV = sdRT/avgRT
-    avgRT_prev = mean(testData$rt[idxPrev_freq],na.rm = TRUE)
-    sdRT_prev = sd(testData$rt[idxPrev_freq],na.rm = TRUE)
-    CV_prev = sdRT_prev/avgRT_prev
-
-    rlData$meanRT_freq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = avgRT
-    rlData$sdRT_freq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = sdRT
-    rlData$accuracy_infreq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = attAccuracy
-    rlData$threeFreq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = threeRT
-    rlData$accuracy_infreq_prev[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = attAccuracy_prev
-    rlData$coefVar[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = CV
-    rlData$coefVar_prev[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = CV_prev
-    
+  # start with the rlData 
+  rlData$meanRT_freq = NA
+  rlData$sdRT_freq = NA
+  rlData$accuracy_infreq = NA
+  rlData$threeFreq = NA
+  rlData$accuracy_infreq_prev = NA
+  rlData$coefVar = NA
+  rlData$coefVar_prev = NA
+  
+  for(ai in 1:N){
+    for(bi in 2:max(testData$rlNum,na.rm = TRUE)){
+      idxRL = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'rl')
+      idxRel_freq = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'freq')
+      idxRel_infreq = which(testData$subject == subjNums[ai]& testData$blockNum == bi & testData$trialType == 'infreq')
+      idxPrev_freq = which(testData$subject == subjNums[ai]& testData$blockNum == (bi-1) & testData$trialType == 'freq')
+      idxPrev_infreq = which(testData$subject == subjNums[ai]& testData$blockNum == (bi-1) & testData$trialType == 'infreq')
+      
+      idxPrevThree = tail(idxPrev_freq,3)
+      
+      avgRT = mean(testData$rt[idxRel_freq],na.rm = TRUE)
+      sdRT = sd(testData$rt[idxRel_freq],na.rm = TRUE)
+      attAccuracy = mean(testData$corr[idxRel_infreq],na.rm = TRUE)
+      threeRT = mean(testData$rt[idxPrevThree],na.rm = TRUE)
+      attAccuracy_prev = mean(testData$corr[idxPrev_infreq],na.rm = TRUE)
+      CV = sdRT/avgRT
+      avgRT_prev = mean(testData$rt[idxPrev_freq],na.rm = TRUE)
+      sdRT_prev = sd(testData$rt[idxPrev_freq],na.rm = TRUE)
+      CV_prev = sdRT_prev/avgRT_prev
+      
+      rlData$meanRT_freq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = avgRT
+      rlData$sdRT_freq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = sdRT
+      rlData$accuracy_infreq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = attAccuracy
+      rlData$threeFreq[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = threeRT
+      rlData$accuracy_infreq_prev[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = attAccuracy_prev
+      rlData$coefVar[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = CV
+      rlData$coefVar_prev[which(rlData$blockNum == bi-1 & rlData$subject == subjNums[ai])] = CV_prev
+      
+    }
   }
-}
-
- rlData_noNan= rlData %>% filter(!is.na(RPE_1alpha)) %>% group_by(subject) %>% mutate(quartiles_one = split_quantile(RPE_1alpha,4))
- rlData_noNan= rlData_noNan %>% group_by(subject) %>% mutate(quartiles = split_quantile(RPE_2alpha,4))
- rlData_noNan$age = as.numeric(rlData_noNan$age)
- demoInfo_summary = rlData_noNan %>% group_by(subject) %>% dplyr::summarise(age = unique(age), sex = unique(sex))
-mean(demoInfo_summary$age)
-sd(demoInfo_summary$age)
-sum(demoInfo_summary$sex == 'Female')
- # add columns for zsccored reward and zscored RPEs
- rlData_noNan$RPE_1alpha_z = NA
- rlData_noNan$RPE_2alpha_z = NA
- rlData_noNan$reward_z = NA
-
- rlData_noNan= rlData_noNan %>% group_by(subject) %>% mutate(RPE_1alpha_z = scale(RPE_1alpha, center = TRUE, scale = TRUE),RPE_2alpha_z = scale(RPE_2alpha, center = TRUE, scale = TRUE),reward_z = scale(reward, center = TRUE, scale = TRUE),accuracy_infreq_z = scale(accuracy_infreq, center = TRUE, scale = TRUE),accuracy_infreq_prev_z = scale(accuracy_infreq_prev, center = TRUE, scale = TRUE),coefVar_z = scale(coefVar, center = TRUE, scale = TRUE),coefVar_prev_z = scale(coefVar_prev, center = TRUE, scale = TRUE))
-
-rlData_noNan$rpeSign = NA
-rlData_noNan$rpeSign[rlData_noNan$RPE_2alpha <= 0] = 'neg'
-rlData_noNan$rpeSign[rlData_noNan$RPE_2alpha >0] = 'pos'
-
-rlData_noNan$rewardSign_num = NA
-rlData_noNan$rewardSign_num[rlData_noNan$rewardSign == 'neg'] = 0
-rlData_noNan$rewardSign_num[rlData_noNan$rewardSign == 'pos'] = 1
-
-rlData_noNan$rpeSign_num = NA
-rlData_noNan$rpeSign_num[rlData_noNan$rpeSign == 'pos'] = 1
-rlData_noNan$rpeSign_num[rlData_noNan$rpeSign == 'neg'] = 0
+  
+  rlData_noNan= rlData %>% filter(!is.na(RPE_1alpha)) %>% group_by(subject) %>% mutate(quartiles_one = split_quantile(RPE_1alpha,4))
+  rlData_noNan= rlData_noNan %>% group_by(subject) %>% mutate(quartiles = split_quantile(RPE_2alpha,4))
+  rlData_noNan$age = as.numeric(rlData_noNan$age)
+  demoInfo_summary = rlData_noNan %>% group_by(subject) %>% dplyr::summarise(age = unique(age), sex = unique(sex))
+  mean(demoInfo_summary$age)
+  sd(demoInfo_summary$age)
+  sum(demoInfo_summary$sex == 'Female')
+  # add columns for zsccored reward and zscored RPEs
+  rlData_noNan$RPE_1alpha_z = NA
+  rlData_noNan$RPE_2alpha_z = NA
+  rlData_noNan$reward_z = NA
+  
+  rlData_noNan= rlData_noNan %>% group_by(subject) %>% mutate(RPE_1alpha_z = scale(RPE_1alpha, center = TRUE, scale = TRUE),RPE_2alpha_z = scale(RPE_2alpha, center = TRUE, scale = TRUE),reward_z = scale(reward, center = TRUE, scale = TRUE),accuracy_infreq_z = scale(accuracy_infreq, center = TRUE, scale = TRUE),accuracy_infreq_prev_z = scale(accuracy_infreq_prev, center = TRUE, scale = TRUE),coefVar_z = scale(coefVar, center = TRUE, scale = TRUE),coefVar_prev_z = scale(coefVar_prev, center = TRUE, scale = TRUE))
+  
+  rlData_noNan$rpeSign = NA
+  rlData_noNan$rpeSign[rlData_noNan$RPE_2alpha <= 0] = 'neg'
+  rlData_noNan$rpeSign[rlData_noNan$RPE_2alpha >0] = 'pos'
+  
+  rlData_noNan$rewardSign_num = NA
+  rlData_noNan$rewardSign_num[rlData_noNan$rewardSign == 'neg'] = 0
+  rlData_noNan$rewardSign_num[rlData_noNan$rewardSign == 'pos'] = 1
+  
+  rlData_noNan$rpeSign_num = NA
+  rlData_noNan$rpeSign_num[rlData_noNan$rpeSign == 'pos'] = 1
+  rlData_noNan$rpeSign_num[rlData_noNan$rpeSign == 'neg'] = 0
 }else{
   rlData_noNan = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/SARL_prolificRep_rlData_noNan_081123.csv")
 }
@@ -495,17 +493,17 @@ for(ai in 1:N){
   incorrCV = NA
   for(bi in 1:length(idx)){
     if (idx[bi]>3){
-    if(sum(subjData$trialType[(idx[bi]-3):(idx[bi]-1)] == 'freq') == 3){
-      if(subjData$corr[idx[bi]]==1){
-        corrRT[bi] = mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
-        corrCV[bi] = sd(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)/mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
-        
-      }else if(subjData$corr[idx[bi]]==0){
-        incorrRT[bi] = mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
-        incorrCV[bi] = sd(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)/mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+      if(sum(subjData$trialType[(idx[bi]-3):(idx[bi]-1)] == 'freq') == 3){
+        if(subjData$corr[idx[bi]]==1){
+          corrRT[bi] = mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+          corrCV[bi] = sd(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)/mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+          
+        }else if(subjData$corr[idx[bi]]==0){
+          incorrRT[bi] = mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+          incorrCV[bi] = sd(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)/mean(subjData$rt[(idx[bi]-3):(idx[bi]-1)], na.rm = TRUE)
+        }
       }
-    }
-  }}
+    }}
   allcorrRT[ai] = mean(corrRT,na.rm = TRUE)
   allincorrRT[ai] = mean(incorrRT,na.rm = TRUE)
   allcorrRT_cv[ai] = mean(corrCV,na.rm = TRUE)
@@ -885,13 +883,13 @@ t.test(accucv_medSplit_negreward$accu_detrend[accucv_medSplit_negreward$medSplit
 cohens_d(data.frame(accucv_medSplit_negreward), accu_detrend ~medSplit,paired = TRUE)
 
 t.test(accucv_medSplit_negreward$cv_detrend[accucv_medSplit_negreward$medSplit==1],accucv_medSplit_negreward$cv_detrend[accucv_medSplit_negreward$medSplit==2], paired = TRUE)
-cohens_d(data.frame(accucv_medSplit_negreward), accu_detrend ~medSplit,paired = TRUE)
+cohens_d(data.frame(accucv_medSplit_negreward), cv_detrend ~medSplit,paired = TRUE)
 
 ```
 
 # accu then cv - median split on positive points
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
-accucv_medSplit_posreward = rlData_noNan %>% filter(reward > 0) %>% group_by(subject) %>% mutate(medSplit = split_quantile(RPE_2alpha,2)) %>%group_by(subject,medSplit) %>% dplyr::summarise(accu = mean(accuracy_infreq,na.rm = TRUE), cv = mean(coefVar, na.rm = TRUE),accu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), cv_detrend = mean(coefVar_detrend, na.rm = TRUE))
+accucv_medSplit_posreward = rlData_noNan %>% filter(reward > 0) %>% group_by(subject) %>% dplyr::mutate(medSplit = split_quantile(RPE_2alpha,2)) %>%group_by(subject,medSplit) %>% dplyr::summarise(accu = mean(accuracy_infreq,na.rm = TRUE), cv = mean(coefVar, na.rm = TRUE),accu_detrend = mean(accuracy_infreq_detrend,na.rm = TRUE), cv_detrend = mean(coefVar_detrend, na.rm = TRUE))
 
 #raw
 ggplot(accucv_medSplit_posreward, aes(x = medSplit, y = accu))+geom_bar(stat = 'summary', fun.y = 'mean') + geom_point()
@@ -1027,9 +1025,9 @@ for (ai in 1:length(freqTrials_terc_lastterc$terc)){
   subject = freqTrials_terc_lastterc$subject[ai]
   rlData_noNan$cv_terc[rlData_noNan$subject == subject & rlData_noNan$blockNum == block] = freqTrials_terc_lastterc$cv[ai]
   rlData_noNan$cv_detrend_terc[rlData_noNan$subject == subject & rlData_noNan$blockNum == block] = freqTrials_terc_lastterc$cv_detrend[ai]
-
+  
 }
-write.csv(rlData_noNan, 'Experiment2_rlData.csv')
+#write.csv(rlData_noNan, 'Experiment2_rlData.csv')
 ```
 \newpage
 # MEMs
@@ -1079,20 +1077,10 @@ AIC(lmFit_attRL_CV_rpe_detrend)
 \newpage
 ## BICs for detrended metrics
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=5, fig.align='center'}
-BIC(lmFit_attRL_reward_detrend)
-BIC(lmFit_attRL_cat_detrend)
-BIC(lmFit_attRL_rpe_detrend)
-BIC(lmFit_attRL_rpecat_detrend)
-
 AIC(lmFit_attRL_reward_detrend)
 AIC(lmFit_attRL_cat_detrend)
 AIC(lmFit_attRL_rpe_detrend)
 AIC(lmFit_attRL_rpecat_detrend)
-
-BIC(lmFit_attRL_CV_reward_detrend)
-BIC(lmFit_attRL_CV_cat_detrend)
-BIC(lmFit_attRL_CV_rpe_detrend)
-BIC(lmFit_attRL_CV_rpecat_detrend)
 
 AIC(lmFit_attRL_CV_reward_detrend)
 AIC(lmFit_attRL_CV_cat_detrend)
@@ -1149,7 +1137,7 @@ sum(unique(rlData_noNan$aicOne))
 ```
 
 \newpage
-# Descriptive statistics for revision
+# Descriptive statistics
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=5, fig.align='center'}
 library(psych)
 library(moments)
