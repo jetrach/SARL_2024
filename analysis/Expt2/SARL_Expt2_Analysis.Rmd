@@ -263,6 +263,7 @@ sprintf('N subjects AFTER EXCLUSIONS: %d', length(unique(testData$subject)))
 # Set up additional columns in rlData
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=4, fig.align='center'}
 rlData = testData %>% filter(trialType == "rl") %>% group_by(subject)
+flag = 1
 if(flag == 1){# make an array with the values you want for each block (subject, RPE, meanRT on freq, sdRT on freq, accuracy on infreq)
   # start with the rlData 
   rlData$meanRT_freq = NA
@@ -330,7 +331,7 @@ if(flag == 1){# make an array with the values you want for each block (subject, 
   rlData_noNan$rpeSign_num[rlData_noNan$rpeSign == 'pos'] = 1
   rlData_noNan$rpeSign_num[rlData_noNan$rpeSign == 'neg'] = 0
 }else{
-  rlData_noNan = read_csv("~/Library/CloudStorage/Box-Box/ACTlab_projects/JT_SARL/SARL/3 Data/subjData_prolific_replication_v2_5.25/SARL_prolificRep_rlData_noNan_081123.csv")
+  rlData_noNan = read_csv("~/Documents/Github/SARL_2024/analysis/Expt2/SARL_Expt2_rlData.csv")
 }
 
 rlData_noNan$avgRT_detrend = NA
