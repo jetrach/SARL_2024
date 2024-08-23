@@ -95,9 +95,6 @@ success = 'https://app.prolific.co/submissions/complete?cc=CODE' // for prolific
   secondBandit = 75 //k
 
 // set up some variables
-  // probabilities ** we're not actually calculating these!
-  pFreq = .9
-  pInfreq = .1
   // trial durations
   attentionDur = 800
   rlDur = 1500
@@ -487,8 +484,7 @@ var fixation = {
 timeline.push(fixation)
 }
 
-// repeat practice if they suck
-//tell them they did bad
+// repeat practice if they did badly
 var repeatInstructions = {
   type: 'instructions',
   pages: [ '<p> Hmmm it looks like you had some trouble with the practice.</p>' +
@@ -1211,8 +1207,6 @@ var feedback= {
       phase: 'test'
     },
     on_finish: function(data){
-      //badflag = jsPsych.data.get().last(1).values()[0].badFlag
-      //data.badFlag = badflag
         data.blockNum = blockNum
         blockNum = blockNum+1
         data.coin = jsPsych.data.get().last(1).values()[0].coin
@@ -1278,7 +1272,7 @@ var shortBreakNode = {
     }
   }
 }
-timeline.push(shortBreakNode)
+//timeline.push(shortBreakNode)
 
 }
 

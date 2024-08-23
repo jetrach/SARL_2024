@@ -210,7 +210,7 @@ cohens_d(data.frame(accuracyByCond_subj),accuracy ~ trialType,paired = TRUE)
 # Accuracy by attention type
 accuracyByCondBySubj = testData %>%filter(trialType %in% c("freq","infreq")) %>% group_by(subject,trialType)%>% dplyr::summarise(accuracy = mean(na.omit(corr)))
 ggplot(accuracyByCondBySubj, aes(x = trialType, y = accuracy))+geom_bar(stat = "summary", fun = "mean")+geom_jitter(width = .1)+labs(y = ' Accuracy')+scale_x_discrete(name = 'Attention Trial Type', labels = c('Frequent', 'Infrequent'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,1))
-ggsave('Expt3_freqinfreqatt_dots.eps')
+#ggsave('Expt3_freqinfreqatt_dots.eps')
 # Accuracy by attention type with error bars
 summaryStats = Rmisc::summarySEwithin(accuracyByCondBySubj,measurevar="accuracy", withinvars=c("trialType"),idvar="subject", na.rm=FALSE, conf.interval=.95)
 ggplot(summaryStats, aes(x = trialType, y = accuracy))+
@@ -227,7 +227,7 @@ ggplot(summaryStats, aes(x = trialType, y = accuracy))+
         panel.background = element_rect(fill = "white", colour = "black"),
         panel.border = element_rect(fill = NA, colour = "white"))+ 
   scale_y_continuous(expand = c(0,0), limits=c(0,1))
-ggsave('Expt3_freqinfreqatt_bars.eps')
+#ggsave('Expt3_freqinfreqatt_bars.eps')
 
 ```
 <p>Trailing RT and accuracy on infreq trials</p>
