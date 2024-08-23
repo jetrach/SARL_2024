@@ -45,7 +45,7 @@ library(effsize)
 se <- function(x) sqrt(var(x)/length(x))
 nanMax = function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
 # read in data
-flag = 1 #1 = compile all the data (This will take >5min for all of the data files), 2 = read in the compiled data
+flag = 2 #1 = compile all the data (This can take >5min for all of the data files), 2 = read in the compiled data
 
 if(flag == 1){
   file_paths = fs::dir_ls(datadir)
@@ -405,12 +405,6 @@ ggplot(detrendcheck, aes(x = blockNum, y = avgAccu_detrend))+geom_line()+geom_ri
 
 ggplot(detrendcheck, aes(x = blockNum, y = avgCV))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV-seCV, ymax = avgCV+seCV),alpha = .5)
 ggplot(detrendcheck, aes(x = blockNum, y = avgCV_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV_detrend-seCV_detrend, ymax = avgCV_detrend+seCV_detrend),alpha = .5)
-```
-## CVRT x reward sign
-```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
-# plot
-ggplot(rewardSignAttPlotArray, aes(x = pointSign, y = avgCV)) + geom_bar(stat = "summary", fun = "mean")+geom_point()
-t.test(rewardSignAttPlotArray$avgCV[rewardSignAttPlotArray$pointSign == 'neg'],rewardSignAttPlotArray$avgCV[rewardSignAttPlotArray$pointSign == 'pos'],paired = TRUE)
 ```
 
 ## reward sign x detrended accu and cv
