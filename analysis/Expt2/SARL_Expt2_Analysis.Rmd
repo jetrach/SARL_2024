@@ -306,11 +306,11 @@ if(flag == 1){# make an array with the values you want for each block (subject, 
   
   rlData_noNan= rlData %>% filter(!is.na(RPE_1alpha)) %>% group_by(subject) %>% mutate(quartiles_one = split_quantile(RPE_1alpha,4))
   rlData_noNan= rlData_noNan %>% group_by(subject) %>% mutate(quartiles = split_quantile(RPE_2alpha,4))
-  rlData_noNan$age = as.numeric(rlData_noNan$age)
-  demoInfo_summary = rlData_noNan %>% group_by(subject) %>% dplyr::summarise(age = unique(age), sex = unique(sex))
-  mean(demoInfo_summary$age)
-  sd(demoInfo_summary$age)
-  sum(demoInfo_summary$sex == 'Female')
+  #rlData_noNan$age = as.numeric(rlData_noNan$age)
+  #demoInfo_summary = rlData_noNan %>% group_by(subject) %>% dplyr::summarise(age = unique(age), sex = unique(sex))
+  #mean(demoInfo_summary$age)
+  #sd(demoInfo_summary$age)
+  #sum(demoInfo_summary$sex == 'Female')
   # add columns for zsccored reward and zscored RPEs
   rlData_noNan$RPE_1alpha_z = NA
   rlData_noNan$RPE_2alpha_z = NA
@@ -1130,7 +1130,7 @@ mean(rpepointsCorrels$rpereward)
 sd(rpepointsCorrels$rpereward)
 ```
 
-# Wilcoxon signed rank test for AIC/BIC to compare one and two learning rate models
+# AIC to compare one and two learning rate models
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=4, fig.height=4, fig.align='center'}
 sum(unique(rlData_noNan$aicTwo))
 sum(unique(rlData_noNan$aicOne))

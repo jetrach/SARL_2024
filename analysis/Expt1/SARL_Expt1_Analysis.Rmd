@@ -40,7 +40,7 @@ library(pracma)
 
 
 # read in data
-flag = 1 #1 = compile all the data, 2 = read in the already ready files
+flag = 2 #1 - compile all the data from scratch (could take 5 min); 2 - use compiled data in folder (raw subject data concatenated and with additional columns for analysis already added)
 
 if(flag == 1){
   file_paths = fs::dir_ls(datadir)
@@ -133,37 +133,22 @@ if(flag == 1){
   
   
   
-  ##### ADD DEMOGRAPHIC INFORMATION INTO THE DATA FRAME #####
-  demoData = read.csv('~/Documents/Github/SARL_2024/analysis/Expt1/SARLv03_SONADemographics.csv')
-  testData$sex = NA
-  testData$age = NA
+  # ##### ADD DEMOGRAPHIC INFORMATION INTO THE DATA FRAME #####
+  # demoData = read.csv('~/Documents/Github/SARL_2024/analysis/Expt1/SARL_Expt1_Demographics.csv')
+  # testData$sex = NA
+  # testData$age = NA
+  # 
+  # for(ai in subjNums_all){
+  #   actID = unique(testData$demoID[testData$subject == ai])
+  #   testData$sex[testData$demoID == actID] = demoData$sex[demoData$ACTID == actID]
+  #   testData$age[testData$demoID == actID] = demoData$age_1[demoData$ACTID == actID]
+  #   
+  # }
+  # testData$age = as.numeric(testData$age)
+  # 
+testData$rew = NA
   
-  for(ai in subjNums_all){
-    actID = unique(testData$demoID[testData$subject == ai])
-    testData$sex[testData$demoID == actID] = demoData$sex[demoData$ACTID == actID]
-    testData$age[testData$demoID == actID] = demoData$age_1[demoData$ACTID == actID]
-    
-  }
-  testData$age = as.numeric(testData$age)
-  
-  # add bins for attention
-  testData$trialBins = NA
-  testData$trialBins[testData$attentionRunNum > 30] = 4
-  testData$trialBins[testData$attentionRunNum < 31] = 3
-  testData$trialBins[testData$attentionRunNum < 21] = 2
-  testData$trialBins[testData$attentionRunNum < 11] = 1
-  
-  testData$trialBinsFive = NA
-  testData$trialBinsFive[testData$attentionRunNum > 30] = 6
-  testData$trialBinsFive[testData$attentionRunNum < 31] = 5
-  testData$trialBinsFive[testData$attentionRunNum < 25] = 4
-  testData$trialBinsFive[testData$attentionRunNum < 19] = 3
-  testData$trialBinsFive[testData$attentionRunNum < 13] = 2
-  testData$trialBinsFive[testData$attentionRunNum < 7] = 1
-  
-  
-  testData$rew = NA
-  for(ai in 1:N_all){
+for(ai in 1:N_all){
     subj = subjNums_all[ai]
     for(bi in 1:(nRLTrials-1)){
       if(is.na(testData$reward[which(testData$subject == subj & testData$rlNum == bi)])) {
@@ -179,9 +164,9 @@ if(flag == 1){
   
   
   ##### ADD MODELING INFORMATION INTO THE DATA FRAME #####
-  RPEs = read.csv('~/Documents/Github/SARL_2024/Expt1/subjData_SONA_freq_v3/RPE_1a_rldm.csv')
-  RPEs_two = read.csv('~/Documents/Github/SARL_2024/Expt1/RPE_2a_rldm.csv')
-  modelInfo = read.csv('~/Documents/Github/SARL_2024/Expt1/modelingInfo_rldm.csv')
+  RPEs = read.csv('~/Documents/Github/SARL_2024/analysis/Expt1/SARL_Expt1_RPE_1a.csv')
+  RPEs_two = read.csv('~/Documents/Github/SARL_2024/analysis/Expt1/SARL_Expt1_RPE_2a.csv')
+  modelInfo = read.csv('~/Documents/Github/SARL_2024/analysis/Expt1/SARL_Expt1_modelingInfo.csv')
   
   # add RPE columns
   testData$RPE_1alpha = NA
