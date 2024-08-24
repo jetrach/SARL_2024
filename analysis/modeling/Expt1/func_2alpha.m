@@ -1,5 +1,5 @@
 
-function [ll] = func_2alpha(params,choice,reward,attention,rt,beta_prior)
+function [ll] = func_2alpha(params,choice,reward,beta_prior)
 
 alpha = params(1); % alpha
 alphaneg = params(2);  % alpha neg
@@ -15,21 +15,21 @@ p = nan(1,ntrials); % init vector of probablities
 % main loop
 for t = 1:ntrials
     if ~isnan(reward(t))  % valid trial
-        
-    if reward(t) == 1
-        lr = alpha; % pos alpha
-    elseif reward(t) == 0
-        lr = alphaneg; % neg alpha
-    end        
-        
+
+        if reward(t) == 1
+            lr = alpha; % pos alpha
+        elseif reward(t) == 0
+            lr = alphaneg; % neg alpha
+        end
+
         %% policy
         pol = mcdougle_softmax_func(q,beta); % compute policy using softmax
         p(t) = pol(choice(t)); % p is the computed policy value for the actual choice the subject made
-        
+
         %% Q-learning!
         q(choice(t)) = q(choice(t)) + lr*(reward(t)-q(choice(t))); % update q value based on choice/outcome
     end
-    
+
 end
 % underflow to prevent some weird stuff
 epsilon=0.00000001;
