@@ -37,7 +37,11 @@ library(lme4)
 library(lmerTest)
 library(cocor)
 library(pracma)
+library(Rmisc)
 
+fisher_transform <- function(r) {
+  0.5 * log((1 + r) / (1 - r))
+}
 
 # read in data
 flag = 2 #1 - compile all the data from scratch (could take 5 min); 2 - use compiled data in folder (raw subject data concatenated and with additional columns for analysis already added)
@@ -414,12 +418,14 @@ ggplot(trailingRT_summary, aes(x = corrIncorr, y = avgRT))+geom_bar(stat = "iden
 #ggsave('expt1_trailingRT.eps')
 
 trailingCV = data.frame('subject' = subjNums, 'corrTrail' = allcorrRT_cv,'incorrTrail' = allincorrRT_cv) %>% pivot_longer(cols = c(corrTrail,incorrTrail),names_to= 'corrIncorr',values_to = 'cv')
-ggplot(trailingCV, aes(x = corrIncorr, y = cv))+geom_bar(stat = "summary", fun = "mean")+geom_point(alpha = .5)+labs(y = 'Trailing average cv(RT) (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0))
+ggplot(trailingCV, aes(x = corrIncorr, y = cv))+geom_bar(stat = "summary", fun = "mean")+geom_point(alpha = 1)+labs(y = 'Trailing average cv(RT) (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0),limits = c(0,.7))
+#ggsave('expt1_trailingCV_dots.eps')
+
 t.test(trailingCV$cv[trailingCV$corrIncorr=='corrTrail'],trailingCV$cv[trailingCV$corrIncorr=='incorrTrail'],paired = TRUE)
 cohens_d(data.frame(trailingCV),cv ~ corrIncorr,paired = TRUE)
 
 trailingCV_summary = summarySEwithin(trailingCV,measurevar="cv", withinvars=c("corrIncorr"),idvar="subject", na.rm=FALSE, conf.interval=.95)
-ggplot(trailingCV_summary, aes(x = corrIncorr, y = cv))+geom_bar(stat = "identity")+geom_errorbar(aes(ymin=cv-se, ymax=cv+se), width=.2,position=position_dodge(.9))+labs(y = 'Trailing average RT (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,.4))
+ggplot(trailingCV_summary, aes(x = corrIncorr, y = cv))+geom_bar(stat = "identity")+geom_errorbar(aes(ymin=cv-se, ymax=cv+se), width=.2,position=position_dodge(.9))+labs(y = 'Trailing average RT (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,.7))
 #ggsave('expt1_trailingCV.eps')
 ```
 \newpage
@@ -659,6 +665,8 @@ ggplot(detrendcheck_prev, aes(x = blockNum, y = avgCV_detrend))+geom_line()+geom
 ```
 # time on task: accu on infreq over blocks
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=8, fig.height=6, fig.align='center'}
+
+
 accuxblocksTOT = rlData_noNan %>% group_by(blockNum) %>% filter(!is.na(accuracy_infreq),!is.na(coefVar)) %>% dplyr::summarise(accu = mean(accuracy_infreq,na.rm = TRUE), seAccu = se(accuracy_infreq),avgCV = mean(coefVar, na.rm = TRUE),seCV = se(coefVar))
 totCorrels = rlData_noNan %>% group_by(subject) %>% filter(!is.na(accuracy_infreq), !is.na(coefVar)) %>% dplyr::summarise(accuCorrel = cor(blockNum, accuracy_infreq,method = 'spearman'), cvCorrel = cor(blockNum, coefVar,method = 'spearman'))
 shapiro.test(accuxblocksTOT$accu) # check if data is normally distributed
@@ -673,8 +681,18 @@ mean(totCorrels$cvCorrel)
 sd(totCorrels$cvCorrel)
 cohens_d(totCorrels,cvCorrel~1, mu = 0)
 
+totCorrels$accuCorrel_fisher = fisher_transform(totCorrels$accuCorrel)
+totCorrels$cvCorrel_fisher = fisher_transform(totCorrels$cvCorrel)
+
 t.test(totCorrels$accuCorrel, mu = 0)
 t.test(totCorrels$cvCorrel, mu = 0)
+
+t.test(totCorrels$accuCorrel_fisher, mu = 0)
+cohens_d(totCorrels,accuCorrel_fisher~1, mu = 0)
+
+t.test(totCorrels$cvCorrel_fisher, mu = 0)
+cohens_d(totCorrels,cvCorrel_fisher~1, mu = 0)
+
 
 ggplot(accuxblocksTOT, aes(x = blockNum,y = accu))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = accu-seAccu, ymax = accu+seAccu), alpha = .5)
 ggplot(accuxblocksTOT, aes(x = blockNum,y = avgCV))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV-seCV, ymax = avgCV+seCV), alpha = .5)
@@ -705,8 +723,17 @@ mean(attentionmetrics$correlSA_detrend)
 sd(attentionmetrics$correlSA_detrend)
 cohens_d(attentionmetrics,correlSA_detrend~1, mu = 0)
 
+attentionmetrics$correlSA_fisher = fisher_transform(attentionmetrics$correlSA)
+attentionmetrics$correlSA_detrend_fisher = fisher_transform(attentionmetrics$correlSA_detrend)
+
 t.test(attentionmetrics$correlSA,mu=0)
 t.test(attentionmetrics$correlSA_detrend,mu=0)
+
+t.test(attentionmetrics$correlSA_fisher,mu=0)
+cohens_d(attentionmetrics,correlSA_fisher~1, mu = 0)
+
+t.test(attentionmetrics$correlSA_detrend_fisher,mu=0)
+cohens_d(attentionmetrics,correlSA_detrend_fisher~1, mu = 0)
 
 ```
 \newpage
@@ -1018,6 +1045,7 @@ anova_test(data.frame(freqTrials_terc_rewSign_wide), dv = cv_detrend_diff, wid =
 t.test(freqTrials_terc_rewSign_wide$cv_diff[freqTrials_terc_rewSign_wide$terc==1])
 t.test(freqTrials_terc_rewSign_wide$cv_diff[freqTrials_terc_rewSign_wide$terc==2])
 t.test(freqTrials_terc_rewSign_wide$cv_diff[freqTrials_terc_rewSign_wide$terc==3])
+avgEffect = freqTrials_terc_rewSign_wide %>% group_by(terc) %>% dplyr::summarise(avg = mean(cv_detrend_diff))
 
 freqTrials_terc_rewSign_wide_one = freqTrials_terc_rewSign_wide %>% filter(terc == 1)
 freqTrials_terc_rewSign_wide_two = freqTrials_terc_rewSign_wide %>% filter(terc == 2)

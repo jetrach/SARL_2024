@@ -274,12 +274,13 @@ ggplot(trailingRT_summary, aes(x = corrIncorr, y = avgRT))+geom_bar(stat = "iden
 #ggsave('expt3_trailingRT.eps')
 
 trailingCV = data.frame('subject' = subjNums, 'corrTrail' = allcorrRT_cv,'incorrTrail' = allincorrRT_cv) %>% pivot_longer(cols = c(corrTrail,incorrTrail),names_to= 'corrIncorr',values_to = 'cv')
-ggplot(trailingCV, aes(x = corrIncorr, y = cv))+geom_bar(stat = "summary", fun = "mean")+geom_point(alpha = .5)+labs(y = 'Trailing average cv(RT) (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0))
+ggplot(trailingCV, aes(x = corrIncorr, y = cv))+geom_bar(stat = "summary", fun = "mean")+geom_point(alpha =1)+labs(y = 'Trailing average cv(RT) (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits = c(0,.7))
 t.test(trailingCV$cv[trailingCV$corrIncorr=='corrTrail'],trailingCV$cv[trailingCV$corrIncorr=='incorrTrail'],paired = TRUE)
 cohens_d(data.frame(trailingCV),cv ~ corrIncorr,paired = TRUE)
+#ggsave('expt3_trailingCV_dots.eps')
 
 trailingCV_summary = summarySEwithin(trailingCV,measurevar="cv", withinvars=c("corrIncorr"),idvar="subject", na.rm=FALSE, conf.interval=.95)
-ggplot(trailingCV_summary, aes(x = corrIncorr, y = cv))+geom_bar(stat = "identity")+geom_errorbar(aes(ymin=cv-se, ymax=cv+se), width=.2,position=position_dodge(.9))+labs(y = 'Trailing average RT (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,.3))
+ggplot(trailingCV_summary, aes(x = corrIncorr, y = cv))+geom_bar(stat = "identity")+geom_errorbar(aes(ymin=cv-se, ymax=cv+se), width=.2,position=position_dodge(.9))+labs(y = 'Trailing average RT (ms)')+scale_x_discrete(name = 'Infrequent trial accuracy', labels = c('Correct', 'Incorrect'))+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))+ scale_y_continuous(expand = c(0,0), limits=c(0,.7))
 #ggsave('expt3_trailingCV.eps')
 ```
 
@@ -751,6 +752,8 @@ anova_test(data.frame(freqTrials_terc_rewSign_wide), dv = cv_detrend_diff, wid =
 t.test(freqTrials_terc_rewSign_wide$cv_detrend_diff[freqTrials_terc_rewSign_wide$terc==1])
 t.test(freqTrials_terc_rewSign_wide$cv_detrend_diff[freqTrials_terc_rewSign_wide$terc==2])
 t.test(freqTrials_terc_rewSign_wide$cv_detrend_diff[freqTrials_terc_rewSign_wide$terc==3])
+
+avgEffect = freqTrials_terc_rewSign_wide %>% group_by(terc) %>% dplyr::summarise(avg = mean(cv_detrend_diff))
 
 # put last terc CV 
 freqTrials_terc_lastterc = testData %>% filter(trialType == 'freq',!is.na(rt)) %>% group_by(subject) %>% mutate(terc = split_quantile(attentionRunNum,3))%>% group_by(subject,blockNum,terc) %>% dplyr::summarise(cv = sd(rt,na.rm = TRUE)/mean(rt, na.rm = TRUE))%>% filter(!is.na(cv)) %>% group_by(subject)%>% mutate(cv_detrend = c(detrend(c(t(cv))))) %>% filter(terc == 3)

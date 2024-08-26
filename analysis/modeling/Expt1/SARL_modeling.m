@@ -1,4 +1,4 @@
-%% code for quick pass analysis on juliana's sustained attention RL data
+%% Experiment 1 modeling code
 %% 12/3/2020; New Haven, CT
 
 clear all;close all;clc;

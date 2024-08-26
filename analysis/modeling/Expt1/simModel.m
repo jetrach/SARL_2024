@@ -102,9 +102,6 @@ for si = 1:nsubs
 
             %% Q-learning
             q(a) = q(a) + lr*(sim_r(sim,n)-q(a));
-
-
-            %         % update previous action vector for stickyness
             pa(:) = 0;
             pa(a) = 1;
 
