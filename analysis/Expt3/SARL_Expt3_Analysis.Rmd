@@ -46,7 +46,7 @@ fisher_transform <- function(r) {
   0.5 * log((1 + r) / (1 - r))
 }
 # read in data
-flag = 1 #1 = compile all the data (This can take >5min for all of the data files), 2 = read in the compiled data
+flag = 2 #1 = compile all the data (This can take >5min for all of the data files), 2 = read in the compiled data
 
 if(flag == 1){
   file_paths = fs::dir_ls(datadir)
