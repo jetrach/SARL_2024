@@ -3,7 +3,7 @@
 
 clear all;close all;clc;
 
-data = readtable('SARL_expt1_exclusionsn28_final.csv'); % load data; v03 SONA
+data = readtable('SARL_expt1_exclusionsn28_final.csv'); % load data
 
 subs = unique(data.subject); % subject IDs
 nsubs = length(subs); % N
