@@ -41,11 +41,12 @@ library(cocor)
 library(pracma)
 library(Rmisc)
 library(effsize)
-# define se function
-se <- function(x) sqrt(var(x)/length(x))
-nanMax = function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
+# define function
+fisher_transform <- function(r) {
+  0.5 * log((1 + r) / (1 - r))
+}
 # read in data
-flag = 2 #1 = compile all the data (This can take >5min for all of the data files), 2 = read in the compiled data
+flag = 1 #1 = compile all the data (This can take >5min for all of the data files), 2 = read in the compiled data
 
 if(flag == 1){
   file_paths = fs::dir_ls(datadir)
@@ -79,7 +80,7 @@ chancePerformance = 50/nRLTrials #maybe add the actual formula at some point
     # rL corr or not
 counter = 1
   for (ai in 1:N_all){
-    for(bi in 1:nanMax(testData$rlNum)){
+    for(bi in 1:max(testData$rlNum,na.rm = TRUE)){
       idx = which(testData$rlNum == bi & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       if(!is_empty(idx)){
       if(is.na(testData$key_press[idx])){
@@ -102,7 +103,7 @@ counter = 1
       testData$rlType[idx-1] = "preRL"
       testData$rlType[idx] = 'rl'
     }}
-    for(ci in 2:nanMax(testData$rlNum)){
+    for(ci in 2:max(testData$rlNum, na.rm = TRUE)){
       idxCurr = which(testData$rlNum == ci & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       idxPrev = which(testData$rlNum == (ci-1) & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       if(!is_empty(idxCurr) & !is_empty(idxPrev)){
@@ -407,7 +408,31 @@ ggplot(detrendcheck, aes(x = blockNum, y = avgAccu_detrend))+geom_line()+geom_ri
 ggplot(detrendcheck, aes(x = blockNum, y = avgCV))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV-seCV, ymax = avgCV+seCV),alpha = .5)
 ggplot(detrendcheck, aes(x = blockNum, y = avgCV_detrend))+geom_line()+geom_ribbon(aes(x = blockNum, ymin = avgCV_detrend-seCV_detrend, ymax = avgCV_detrend+seCV_detrend),alpha = .5)
 ```
+## Correlation between attention metrics
+```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=4, fig.align='center'}
+# Correlation between attention metrics
+attentionmetrics = rlData %>%filter(!is.na(accu_infreq), !is.na(CV))%>% group_by(subject) %>% dplyr::summarise(correlSA = cor(accu_infreq,CV, method = 'spearman'),correlSA_detrend = cor(accuracy_infreq_detrend,coefVar_detrend, method = 'spearman'))
 
+mean(attentionmetrics$correlSA)
+mean(attentionmetrics$correlSA_detrend)
+sd(attentionmetrics$correlSA)
+sd(attentionmetrics$correlSA_detrend)
+
+ggplot(attentionmetrics, aes(x = subject, y = correlSA))+geom_point()+geom_hline(yintercept = 0, color = 'red')+ggtitle('correlation between raw attention metrics by subject')
+ggplot(attentionmetrics, aes(x = subject, y = correlSA_detrend))+geom_point()+geom_hline(yintercept = 0, color = 'red')+ggtitle('correlation between detrended attention metrics by subject')
+
+attentionmetrics$correlSA_fisher = fisher_transform(attentionmetrics$correlSA)
+attentionmetrics$correlSA_detrend_fisher = fisher_transform(attentionmetrics$correlSA_detrend)
+
+t.test(attentionmetrics$correlSA,mu=0)
+t.test(attentionmetrics$correlSA_detrend,mu=0)
+
+t.test(attentionmetrics$correlSA_fisher,mu=0)
+cohens_d(attentionmetrics,correlSA_fisher~1, mu = 0)
+
+t.test(attentionmetrics$correlSA_detrend_fisher,mu=0)
+cohens_d(attentionmetrics,correlSA_detrend_fisher~1, mu = 0)
+```
 ## reward sign x detrended accu and cv
 ```{r, echo=F, message=F, warning=F, error=T, fig.width=6, fig.height=3.5, fig.align='center'}
 attxreward_detrend = rlData %>% group_by(subject, pointSign) %>% dplyr::summarise(accu = mean(accuracy_infreq_detrend, na.rm = TRUE), cv = mean(coefVar_detrend, na.rm = TRUE), avgRT = mean(avgRT_detrend))

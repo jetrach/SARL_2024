@@ -477,15 +477,16 @@ corrRL = testData %>% filter(trialType == 'rl', !is.na(rlCorr)) %>% group_by(sub
 shapiro.test(corrRL$accuracyRL) # check if data is normally distributed
 shapiro.test(corrInfreq$accuracyInfreq) # check if data is normally distributed
 
-ggplot(corrInfreq,aes(x = corrInfreq$accuracyInfreq*100, y = corrRL$accuracyRL*100))+geom_point()+geom_smooth(method = 'lm',se = FALSE)+stat_cor(method = "spearman")+labs(y = '% Optimal Choice (RL Trials)',x = '% Correct (Infrequent Attention Trials)')+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))
+ggplot(corrInfreq,aes(x = corrInfreq$accuracyInfreq*100, y = corrRL$accuracyRL*100))+geom_point()+geom_smooth(method = 'lm',se = FALSE)+stat_cor(method = "pearson")+labs(y = '% Optimal Choice (RL Trials)',x = '% Correct (Infrequent Attention Trials)')+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))
 
 cor.test(corrInfreq$accuracyInfreq,corrRL$accuracyRL, method = "pearson")
 cor.test(corrInfreq$accuracyInfreq,corrRL$accuracyRL, method = "spearman")
 
 cvFreq = testData %>% filter(trialType == 'freq') %>% group_by(subject) %>% dplyr::summarize(cv = sd(rt,na.rm = TRUE)/mean(rt,na.rm = TRUE))
-ggplot(cvFreq,aes(x = cvFreq$cv, y = corrRL$accuracyRL*100))+geom_point()+geom_smooth(method = 'lm',se = FALSE)+stat_cor(method = "spearman")+labs(y = '% Optimal Choice (RL Trials)',x = 'CV (frequent attention trials)')+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))
+ggplot(cvFreq,aes(x = cvFreq$cv, y = corrRL$accuracyRL*100))+geom_point()+geom_smooth(method = 'lm',se = FALSE)+stat_cor(method = "pearson")+labs(y = '% Optimal Choice (RL Trials)',x = 'CV (frequent attention trials)')+theme(axis.title.x = element_text(size = 18, face = 'bold'), axis.title.y = element_text(size = 18, face = 'bold'),axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14), axis.line = element_line(),panel.grid = element_blank(),panel.background = element_rect(fill = "white", colour = "black"),panel.border = element_rect(fill = NA, colour = "white"))
+shapiro.test(cvFreq$cv) # check if data is normally distributed
 
-cor.test(cvFreq$cv,corrRL$accuracyRL, method = "spearman")
+cor.test(cvFreq$cv,corrRL$accuracyRL, method = "pearson")
 ```
 
 ## correlation between p(corr on infreq) and learning rates

@@ -1,24 +1,24 @@
-function ll = func_1alpha(params,choice,reward,beta_prior)
+function ll = func_1alpha(params,choice,reward,beta_prior,pairAssignment)
 
+% randomly initialized parameters
 alpha = params(1);
 beta = params(2);
-
+% how many options per trial
 na = 2;
-
+% how many trials
 ntrials = length(choice);
 
-q = ones(na,1)*1/na;
+% initialize q values 2 columns (choices per trial) and 4 rows (n bandit
+% pairs)
+q = ones(na,4)*1/na;
 p = nan(1,ntrials);
-
-% previous action
-% pa = zeros(na,1);
 
 for t = 1:ntrials
     if ~isnan(reward(t))  % valid trial
 
-
+        [r,c] = find(pairAssignment == choice(t));
         %% policy
-        pol = mcdougle_softmax_func(q,beta);
+        pol = mcdougle_softmax_func(q(r,:),beta);
         p(t) = pol(choice(t));
 
         %% Q-learning

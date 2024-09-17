@@ -79,7 +79,7 @@ if(flag == 1){
   # rL corr or not
   counter = 1
   for (ai in 1:N_all){
-    for(bi in 1:nanMax(testData$rlNum)){
+    for(bi in 1:max(testData$rlNum,na.rm = TRUE)){
       idx = which(testData$rlNum == bi & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       if(!is_empty(idx)){
         if(is.na(testData$key_press[idx])){
@@ -94,7 +94,7 @@ if(flag == 1){
         testData$rlType[idx] = 'rl'
       }}
     
-    for(ci in 2:nanMax(testData$rlNum)){
+    for(ci in 2:max(testData$rlNum,na.rm = TRUE)){
       idxCurr = which(testData$rlNum == ci & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       idxPrev = which(testData$rlNum == (ci-1) & testData$subject == subjNums_all[ai] & testData$trialType == "rl")
       if(!is_empty(idxCurr) & !is_empty(idxPrev)){
@@ -110,7 +110,7 @@ if(flag == 1){
             testData$switch[idxCurr] = NA
           }}
       }
-      if(ci < nanMax(testData$rlNum)){
+      if(ci < max(testData$rlNum,na.rm = TRUE)){
         idxSubjBlock = which(testData$subject == subjNums_all[ai] & testData$blockNum == ci)
         testData$prevReward[idxSubjBlock] = testData$reward[which(testData$subject == subjNums_all[ai] & testData$rlNum == ci-1)]
       }
@@ -174,14 +174,14 @@ if(flag == 1){
     testData$aicTwo[testData$subject == subj] = modelInfo[[subj]][8]
     testData$bicTwo[testData$subject == subj] = modelInfo[[subj]][9]
     
-    for(bi in 2:nanMax(testData$rlNum)){
+    for(bi in 2:max(testData$rlNum,na.rm=TRUE)){
       
       idxSubjBlock = which(testData$subject == subj & testData$blockNum == bi)
       testData$RPE_1alpha[idxSubjBlock] = RPEs[[subj]][bi-1]
-      testData$RPE_1alpha[nanMin(idxSubjBlock)-1] = RPEs[[subj]][bi-1]
+      testData$RPE_1alpha[min(idxSubjBlock,na.rm = TRUE)-1] = RPEs[[subj]][bi-1]
       
       testData$RPE_2alpha[idxSubjBlock] = RPEs_two[[subj]][bi-1]
-      testData$RPE_2alpha[nanMin(idxSubjBlock)-1] = RPEs_two[[subj]][bi-1]
+      testData$RPE_2alpha[min(idxSubjBlock, na.rm = TRUE)-1] = RPEs_two[[subj]][bi-1]
     }
   }
   
