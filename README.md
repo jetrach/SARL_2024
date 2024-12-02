@@ -1,6 +1,7 @@
 This repository contains the task code, data, and analysis code for Trach et al. "Rewards transiently and automatically enhance sustained attention." 
 
 Contents:
+
 task - this folder has the task code for each experiment. Stimuli are stored in imgs folder. 
 
 analysis - 
